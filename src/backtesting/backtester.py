@@ -1135,7 +1135,9 @@ class Backtester:
         """Calculate current volatility for position sizing"""
         # This would use historical data to calculate volatility
         # For now, return a default value
-        return 0.02
+        if len(returns) <= 1:
+            return 0.0
+        return returns.std()
     
     def _create_price_state(self, data: pd.DataFrame) -> np.ndarray:
         """Create state vector from price data for RL agent"""

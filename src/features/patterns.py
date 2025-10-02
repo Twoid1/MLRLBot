@@ -1050,3 +1050,4 @@ class PatternRecognition:
                     filled.iloc[i] = 1
         
         return filled
+        

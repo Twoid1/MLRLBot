@@ -312,9 +312,10 @@ class MetricsCalculator:
     
     def _calculate_drawdown_series(self, equity_curve: pd.Series) -> pd.Series:
         """Calculate drawdown series"""
-        cumulative = (1 + equity_curve.pct_change()).cumprod()
-        running_max = cumulative.expanding().max()
-        drawdown = (cumulative - running_max) / running_max
+        # No need to convert to cumulative returns if equity_curve is already the cumulative equity
+        # Just use the equity curve directly
+        running_max = equity_curve.expanding().max()
+        drawdown = (equity_curve / running_max) - 1.0
         return drawdown
     
     def _calculate_max_drawdown_duration(self, drawdown_series: pd.Series) -> int:

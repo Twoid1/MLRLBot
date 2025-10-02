@@ -1,0 +1,2056 @@
+/* ROCKETS TRADING Dashboard Custom Styles */
+/* Save this file as: dashboard/assets/custom_styles.css */
+
+/* Base Styles */
+body {
+    background: linear-gradient(135deg, #2a2a2a 0%, #1f1f1f 50%, #2a2a2a 100%);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+#react-entry-point {
+    min-height: 100vh;
+}
+
+/* Header Styles */
+.dashboard-header {
+    background: linear-gradient(90deg, #000000 0%, #1a1a1a 50%, #000000 100%);
+    border-bottom: 3px solid #008394;
+    padding: 1rem 2rem;
+    box-shadow: 0 4px 20px rgba(0, 131, 148, 0.3);
+}
+
+.logo-icon {
+    background: linear-gradient(45deg, #008394, #00a3b8);
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow: 0 0 20px rgba(0, 131, 148, 0.5);
+    display: inline-block;
+}
+
+.app-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    background: linear-gradient(45deg, #008394, #ffffff);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 2px;
+    margin-left: 0.75rem;
+}
+
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background: linear-gradient(45deg, rgba(0, 131, 148, 0.2), rgba(0, 131, 148, 0.1));
+    border: 1px solid #008394;
+    color: #008394;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #008394;
+    box-shadow: 0 0 10px rgba(0, 131, 148, 0.8);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Navigation Tabs */
+.page-navigation {
+    background: linear-gradient(90deg, #B98544 0%, #E13A3E 50%, #B98544 100%);
+    border-bottom: 2px solid #008394;
+    padding: 0.75rem 2rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.nav-tab {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 0.75rem 1.5rem;
+    margin: 0 0.25rem;
+    transition: all 0.3s ease;
+}
+
+.nav-tab:hover {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-1px);
+}
+
+.nav-tab.active {
+    background: linear-gradient(45deg, #008394, #00a3b8);
+    border-color: #008394;
+    box-shadow: 0 0 15px rgba(0, 131, 148, 0.4);
+}
+
+/* Card Styles */
+.trading-card {
+    background: linear-gradient(145deg, #3a3a3a 0%, #2f2f2f 50%, #3a3a3a 100%);
+    border: 1px solid #4a4a4a;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+    margin-bottom: 1.5rem;
+}
+
+.trading-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    border-color: #5a5a5a;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #4a4a4a;
+}
+
+.card-header h3 {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0;
+}
+
+/* Value Displays */
+.value-positive {
+    color: #4ade80;
+}
+
+.value-negative {
+    color: #f87171;
+}
+
+.metric-large {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+/* Position Badges */
+.position-long {
+    background: rgba(74, 222, 128, 0.2);
+    color: #4ade80;
+    border: 1px solid #4ade80;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.position-short {
+    background: rgba(248, 113, 113, 0.2);
+    color: #f87171;
+    border: 1px solid #f87171;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* Action Buttons */
+.action-btn-primary {
+    background: #3b82f6;
+    color: #ffffff;
+    border: none;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.action-btn-primary:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+.action-btn-secondary {
+    background: #6b7280;
+    color: #ffffff;
+    border: none;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.action-btn-secondary:hover {
+    background: #4b5563;
+    transform: translateY(-1px);
+}
+
+.action-btn-danger {
+    background: #ef4444;
+    color: #ffffff;
+    border: none;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.action-btn-danger:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+}
+
+.action-btn-accent {
+    background: #10b981;
+    color: #ffffff;
+    border: none;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.action-btn-accent:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+/* Decorative Separator */
+.decorative-separator {
+    background: linear-gradient(90deg, #1f1f1f 0%, #2a2a2a 20%, #1f1f1f 40%, #2a2a2a 60%, #1f1f1f 80%, #2a2a2a 100%);
+    border: 1px solid #4a4a4a;
+    border-radius: 12px;
+    padding: 2.5rem 2rem;
+    margin: 2rem 0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.separator-text {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    background: linear-gradient(45deg, #008394, #ffffff, #B98544);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.logo-glow {
+    background: linear-gradient(45deg, #008394, #00a3b8);
+    border-radius: 50%;
+    padding: 15px;
+    display: inline-block;
+    box-shadow: 
+        0 0 30px rgba(0, 131, 148, 0.6),
+        0 0 60px rgba(0, 131, 148, 0.3),
+        inset 0 0 20px rgba(255, 255, 255, 0.1);
+    animation: logoGlow 3s ease-in-out infinite alternate;
+}
+
+@keyframes logoGlow {
+    0% {
+        box-shadow: 
+            0 0 30px rgba(0, 131, 148, 0.6),
+            0 0 60px rgba(0, 131, 148, 0.3),
+            inset 0 0 20px rgba(255, 255, 255, 0.1);
+        transform: scale(1);
+    }
+    100% {
+        box-shadow: 
+            0 0 40px rgba(0, 131, 148, 0.8),
+            0 0 80px rgba(0, 131, 148, 0.4),
+            inset 0 0 25px rgba(255, 255, 255, 0.2);
+        transform: scale(1.05);
+    }
+}
+
+/* Footer */
+.dashboard-footer {
+    background: linear-gradient(90deg, #000000 0%, #1a1a1a 50%, #000000 100%);
+    border-top: 3px solid #008394;
+    padding: 1rem 2rem;
+    margin-top: 2rem;
+    box-shadow: 0 -4px 20px rgba(0, 131, 148, 0.3);
+}
+
+/* Animations */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .dashboard-header {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .page-navigation {
+        padding: 0.5rem 1rem;
+    }
+    
+    .nav-tab {
+        padding: 0.5rem 1rem;
+        font-size: 0.75rem;
+    }
+    
+    .nav-tab span {
+        display: none;
+    }
+    
+    .trading-card {
+        margin-bottom: 1rem;
+    }
+    
+    .decorative-separator {
+        padding: 1.5rem 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .separator-text {
+        font-size: 0.875rem;
+        letter-spacing: 2px;
+    }
+}
+
+/* Data Center Specific Styles */
+.asset-button {
+    transition: all 0.3s ease;
+}
+
+.asset-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 131, 148, 0.3);
+}
+
+.timeframe-button {
+    transition: all 0.3s ease;
+}
+
+.timeframe-button:hover {
+    transform: translateY(-1px);
+}
+
+.chart-type-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #4a4a4a;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.chart-type-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: #5a5a5a;
+}
+
+.chart-type-btn.active {
+    background: linear-gradient(45deg, #008394, #00a3b8);
+    border-color: #008394;
+    box-shadow: 0 0 10px rgba(0, 131, 148, 0.4);
+}
+
+/* Date Picker Styles */
+.DateRangePickerInput {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid #4a4a4a !important;
+    border-radius: 8px !important;
+}
+
+.DateRangePickerInput__withBorder {
+    border: none !important;
+}
+
+.DateInput_input {
+    background: transparent !important;
+    color: white !important;
+    font-size: 0.875rem !important;
+}
+
+.DateRangePickerInput_arrow {
+    color: #888 !important;
+}
+
+/* Plotly Chart Dark Theme Overrides */
+.js-plotly-plot .plotly .modebar {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-radius: 8px !important;
+    padding: 4px !important;
+}
+
+.js-plotly-plot .plotly .modebar-btn {
+    color: #888 !important;
+}
+
+.js-plotly-plot .plotly .modebar-btn:hover {
+    color: #008394 !important;
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4a4a4a;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #5a5a5a;
+}
+
+/* Add these styles to your existing custom_styles.css file */
+
+/* Custom Dropdown Styles */
+.custom-dropdown .Select__control {
+    background-color: rgba(0, 0, 0, 0.6) !important;
+    border: 1px solid rgba(0, 131, 148, 0.3) !important;
+    border-radius: 8px !important;
+    min-height: 40px !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.custom-dropdown .Select__control:hover {
+    border-color: #008394 !important;
+    box-shadow: 0 0 10px rgba(0, 131, 148, 0.3) !important;
+}
+
+.custom-dropdown .Select__control--is-focused {
+    border-color: #008394 !important;
+    box-shadow: 0 0 15px rgba(0, 131, 148, 0.5) !important;
+}
+
+.custom-dropdown .Select__single-value {
+    color: white !important;
+    font-weight: 500;
+}
+
+.custom-dropdown .Select__placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.custom-dropdown .Select__indicator-separator {
+    background-color: rgba(0, 131, 148, 0.3) !important;
+}
+
+.custom-dropdown .Select__dropdown-indicator {
+    color: #008394 !important;
+}
+
+.custom-dropdown .Select__dropdown-indicator:hover {
+    color: #00a3b8 !important;
+}
+
+.custom-dropdown .Select__menu {
+    background-color: rgba(0, 0, 0, 0.95) !important;
+    border: 1px solid #008394 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8) !important;
+    margin-top: 4px;
+}
+
+.custom-dropdown .Select__menu-list {
+    padding: 0 !important;
+}
+
+.custom-dropdown .Select__option {
+    background-color: transparent !important;
+    color: rgba(255, 255, 255, 0.8) !important;
+    padding: 10px 15px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease;
+}
+
+.custom-dropdown .Select__option:hover {
+    background-color: rgba(0, 131, 148, 0.2) !important;
+    color: white !important;
+}
+
+.custom-dropdown .Select__option--is-selected {
+    background-color: #008394 !important;
+    color: white !important;
+}
+
+.custom-dropdown .Select__option--is-focused {
+    background-color: rgba(0, 131, 148, 0.3) !important;
+}
+
+/* Timeframe Button Bar */
+.timeframe-btn {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.6);
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    min-width: 60px;
+}
+
+.timeframe-btn:hover {
+    background: rgba(185, 133, 68, 0.2);
+    border-color: #B98544;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(185, 133, 68, 0.3);
+}
+
+.timeframe-btn.active {
+    background: linear-gradient(45deg, #B98544, #E13A3E);
+    border-color: #B98544;
+    color: white;
+    box-shadow: 0 4px 20px rgba(185, 133, 68, 0.5);
+}
+
+.timeframe-btn.active:hover {
+    transform: translateY(0);
+}
+
+/* Chart Type Buttons */
+.chart-type-btn {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.6);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chart-type-btn:hover {
+    background: rgba(0, 131, 148, 0.2);
+    border-color: #008394;
+    color: white;
+}
+
+.chart-type-btn.active {
+    background: #008394;
+    border-color: #008394;
+    color: white;
+    box-shadow: 0 2px 10px rgba(0, 131, 148, 0.4);
+}
+
+/* Price Display Animation */
+@keyframes priceUpdate {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.price-update {
+    animation: priceUpdate 0.5s ease;
+}
+
+/* Stat Cards Enhancement */
+.stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+}
+
+/* Chart Container Enhancement */
+.main-chart-container {
+    position: relative;
+    background: linear-gradient(180deg, 
+        rgba(0, 131, 148, 0.05) 0%, 
+        rgba(0, 0, 0, 0.4) 100%);
+    border: 1px solid transparent;
+    background-clip: padding-box;
+}
+
+.main-chart-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 12px;
+    padding: 1px;
+    background: linear-gradient(45deg, #008394, transparent, #B98544);
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box, 
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: destination-out;
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
+/* Loading State for Chart */
+.chart-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 600px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 12px;
+}
+
+.chart-loading::after {
+    content: '';
+    width: 50px;
+    height: 50px;
+    border: 3px solid rgba(0, 131, 148, 0.2);
+    border-top-color: #008394;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* Volume Bar Hover Effect */
+.volume-bar:hover {
+    opacity: 0.8 !important;
+    filter: brightness(1.2);
+}
+
+/* Statistics Bar Enhancement */
+.stats-bar {
+    background: linear-gradient(90deg, 
+        rgba(0, 131, 148, 0.1) 0%, 
+        rgba(185, 133, 68, 0.1) 50%, 
+        rgba(225, 58, 62, 0.1) 100%);
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+}
+
+.stats-bar::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -100%;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, 
+        transparent, 
+        #008394, 
+        transparent);
+    animation: scanline 3s linear infinite;
+}
+
+@keyframes scanline {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Export Button Special Effects */
+.action-btn-primary:active {
+    transform: scale(0.98);
+}
+
+.action-btn-secondary:active {
+    transform: scale(0.98);
+}
+
+/* Responsive Design for Data Center */
+@media (max-width: 1200px) {
+    .timeframe-btn {
+        min-width: 50px;
+        padding: 0.5rem;
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .stats-bar {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .stats-bar > div {
+        text-align: left !important;
+        padding: 0.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}
+
+/* Plotly Chart Dark Theme Override */
+.js-plotly-plot .plotly .modebar {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 131, 148, 0.3);
+}
+
+.js-plotly-plot .plotly .modebar-btn {
+    color: #008394 !important;
+}
+
+.js-plotly-plot .plotly .modebar-btn:hover {
+    color: #00a3b8 !important;
+}
+
+.js-plotly-plot .plotly .modebar-btn.active {
+    color: #00ff88 !important;
+}
+
+.training-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #4a4a4a;
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    margin-bottom: 1.5rem;
+}
+
+.training-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #008394;
+    box-shadow: 0 0 20px rgba(0, 131, 148, 0.2);
+}
+
+.training-card h3 {
+    color: white;
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.training-mode-btn {
+    background: transparent;
+    color: #b0b0b0;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-radius: 4px;
+}
+
+.training-mode-btn:hover {
+    background: rgba(0, 131, 148, 0.2);
+    color: white;
+}
+
+.training-mode-btn.active {
+    background: rgba(0, 131, 148, 0.3);
+    color: #008394;
+    border-bottom: 2px solid #008394;
+}
+
+.action-btn-primary {
+    background: linear-gradient(135deg, #008394 0%, #00a3b8 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.action-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #00a3b8 0%, #00c4d6 100%);
+    box-shadow: 0 4px 12px rgba(0, 131, 148, 0.4);
+    transform: translateY(-1px);
+}
+
+.action-btn-primary:active {
+    transform: translateY(0);
+}
+
+.action-btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid #4a4a4a;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.action-btn-secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: #008394;
+    transform: translateY(-1px);
+}
+
+.action-btn-secondary:disabled,
+.action-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.action-btn-danger {
+    background: rgba(225, 58, 62, 0.2);
+    color: #e13a3e;
+    border: 1px solid #e13a3e;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.action-btn-danger:hover {
+    background: rgba(225, 58, 62, 0.3);
+    box-shadow: 0 4px 12px rgba(225, 58, 62, 0.3);
+    transform: translateY(-1px);
+}
+
+/* Checklist Styling */
+.dash-checklist label {
+    color: #b0b0b0;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.dash-checklist label:hover {
+    background: rgba(0, 131, 148, 0.1);
+    color: white;
+}
+
+.dash-checklist input[type="checkbox"]:checked + label {
+    color: #008394;
+    background: rgba(0, 131, 148, 0.2);
+}
+
+/* Radio Items Styling */
+.dash-radioitems label {
+    color: #b0b0b0;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+}
+
+.dash-radioitems label:hover {
+    background: rgba(0, 131, 148, 0.1);
+    color: white;
+}
+
+.dash-radioitems input[type="radio"]:checked + label {
+    color: #008394;
+    background: rgba(0, 131, 148, 0.2);
+    border-left: 3px solid #008394;
+}
+
+/* Dropdown Styling */
+.Select-control {
+    background: #1a1a1a !important;
+    border: 1px solid #4a4a4a !important;
+}
+
+.Select-value-label {
+    color: white !important;
+}
+
+.Select-menu-outer {
+    background: #1a1a1a !important;
+    border: 1px solid #4a4a4a !important;
+}
+
+.Select-option {
+    background: #1a1a1a !important;
+    color: #b0b0b0 !important;
+}
+
+.Select-option:hover {
+    background: rgba(0, 131, 148, 0.2) !important;
+    color: white !important;
+}
+
+.Select-option.is-selected {
+    background: rgba(0, 131, 148, 0.3) !important;
+    color: #008394 !important;
+}
+
+/* Slider Styling */
+.rc-slider-rail {
+    background: rgba(0, 131, 148, 0.2);
+}
+
+.rc-slider-track {
+    background: #008394;
+}
+
+.rc-slider-handle {
+    border-color: #008394;
+    background: #008394;
+}
+
+.rc-slider-handle:hover {
+    border-color: #00a3b8;
+    background: #00a3b8;
+}
+
+.rc-slider-dot-active {
+    border-color: #008394;
+}
+
+/* Date Picker Styling */
+.DateRangePickerInput {
+    background: transparent !important;
+}
+
+.DateInput_input {
+    background: #1a1a1a !important;
+    color: white !important;
+    border: 1px solid #4a4a4a !important;
+}
+
+.DateInput_input__focused {
+    border-color: #008394 !important;
+}
+
+/* Progress Bar Animation */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(0, 131, 148, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(0, 131, 148, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 131, 148, 0);
+    }
+}
+
+.training-progress {
+    animation: pulse 2s infinite;
+}
+
+/* Log Entry Animations */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.log-entry {
+    animation: slideIn 0.3s ease;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .training-card {
+        padding: 1rem;
+    }
+    
+    .action-btn-primary,
+    .action-btn-secondary,
+    .action-btn-danger {
+        padding: 0.5rem 1rem;
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .training-mode-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+    
+    .training-card h3 {
+        font-size: 1rem;
+    }
+}
+
+.js-plotly-plot {
+    display: block !important;
+    width: 100% !important;
+}
+
+.plot-container {
+    display: block !important;
+    width: 100% !important;
+}
+
+/* Prevent infinite growth */
+#ml-confusion-matrix,
+#ml-feature-importance,
+#ml-accuracy-chart,
+#ml-loss-chart,
+#ml-f1-chart,
+#rl-reward-chart,
+#rl-loss-chart,
+#rl-epsilon-chart,
+#rl-action-dist,
+#rl-episode-performance {
+    max-height: 400px !important;
+    overflow: hidden !important;
+}
+
+/* Ensure parent containers don't grow */
+.training-card {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Fix for modebar positioning */
+.modebar {
+    position: absolute !important;
+    top: 5px !important;
+    right: 5px !important;
+    z-index: 1000 !important;
+}
+
+/* Ensure SVG container doesn't overflow */
+.main-svg {
+    overflow: visible !important;
+}
+
+/* Fix for Plotly responsiveness */
+.plotly-notifier {
+    visibility: hidden !important;
+}
+
+/* Trading Cards - Flexible containers */
+.trading-card {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.4));
+    border: 1px solid rgba(0, 131, 148, 0.3);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.trading-card:hover {
+    border-color: rgba(0, 131, 148, 0.5);
+    box-shadow: 0 12px 48px rgba(0, 131, 148, 0.2);
+}
+
+/* CRITICAL: Graph container fixes */
+#performance-chart,
+#allocation-chart {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Prevent Plotly from auto-resizing */
+.trading-card .js-plotly-plot {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.trading-card .plot-container {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.trading-card .svg-container {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Override Dash's responsive container */
+.trading-card ._dash-loading {
+    position: relative !important;
+}
+
+/* Trading Mode Buttons */
+.mode-btn {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+}
+
+.mode-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 131, 148, 0.3);
+}
+
+.mode-btn.active {
+    background: linear-gradient(90deg, #008394 0%, #00a3b8 100%) !important;
+    color: white !important;
+    border: none !important;
+}
+
+/* Trading Panel Buttons */
+.trade-btn-buy {
+    background: linear-gradient(45deg, #00ff88, #00cc6a);
+    border: none;
+    color: #000;
+    font-weight: 600;
+    padding: 0.75rem 2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.trade-btn-buy:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+}
+
+.trade-btn-sell {
+    background: linear-gradient(45deg, #ff6b6b, #ff4757);
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 0.75rem 2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.trade-btn-sell:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+}
+
+/* Portfolio Metric Cards */
+.portfolio-metric-card {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1.25rem;
+    transition: all 0.3s ease;
+    min-height: 120px;
+}
+
+.portfolio-metric-card:hover {
+    background: rgba(0, 0, 0, 0.5);
+    border-color: rgba(0, 131, 148, 0.5);
+}
+
+/* Risk Alert Styles */
+.risk-alert-low {
+    background: rgba(0, 255, 136, 0.1);
+    border-left: 4px solid #00ff88;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+}
+
+.risk-alert-medium {
+    background: rgba(255, 217, 61, 0.1);
+    border-left: 4px solid #ffd93d;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+}
+
+.risk-alert-high {
+    background: rgba(255, 107, 107, 0.1);
+    border-left: 4px solid #ff6b6b;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+}
+
+/* Position Table Styles */
+.dash-table-container .dash-spreadsheet-container {
+    background: transparent !important;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+    background: rgba(0, 131, 148, 0.2) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    font-size: 0.75rem !important;
+    letter-spacing: 1px !important;
+    border: none !important;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
+    background: rgba(0, 0, 0, 0.2) !important;
+    color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner tr:hover td {
+    background: rgba(0, 131, 148, 0.1) !important;
+}
+
+/* Execute Trade Button */
+#execute-trade-btn {
+    background: linear-gradient(45deg, #B98544, #E13A3E);
+    border: none;
+    color: white;
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+    width: 100%;
+    margin-top: 1rem;
+}
+
+#execute-trade-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(185, 133, 68, 0.4);
+}
+
+#execute-trade-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Loading Animation */
+@keyframes pulse-portfolio {
+    0%, 100% { 
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 0.6;
+        transform: scale(0.98);
+    }
+}
+
+.portfolio-loading {
+    animation: pulse-portfolio 2s infinite;
+}
+
+/* IMPORTANT: Override Dash's default graph sizing */
+.dash-graph {
+    height: 100% !important;
+    width: 100% !important;
+}
+
+/* Ensure proper graph container behavior */
+div[data-dash-is-loading="true"] {
+    visibility: inherit !important;
+}
+
+/* Backtesting Laboratory Styles */
+/* Add these to your custom_styles.css file */
+
+/* Backtest Cards */
+.backtest-card {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.4));
+    border: 1px solid rgba(0, 131, 148, 0.3);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.backtest-card:hover {
+    border-color: rgba(0, 131, 148, 0.5);
+    box-shadow: 0 12px 48px rgba(0, 131, 148, 0.2);
+}
+
+/* Control Buttons */
+.control-btn-primary {
+    background: linear-gradient(45deg, #008394, #00a3b8);
+    border: none;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.control-btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 131, 148, 0.4);
+}
+
+.control-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.control-btn {
+    background: rgba(0, 131, 148, 0.2);
+    border: 1px solid #008394;
+    color: #00a3b8;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.control-btn:hover:not(:disabled) {
+    background: rgba(0, 131, 148, 0.3);
+    transform: translateY(-2px);
+}
+
+.control-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Progress Bar Container */
+.backtest-progress-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* Metric Cards */
+.backtest-metric-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(0, 131, 148, 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.backtest-metric-card:hover {
+    background: rgba(0, 0, 0, 0.4);
+    border-color: rgba(0, 131, 148, 0.4);
+    transform: translateY(-2px);
+}
+
+/* Trade Analysis Cards */
+.trade-analysis-card {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Walk-Forward Section */
+.walk-forward-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.walk-forward-input {
+    flex: 1;
+}
+
+.walk-forward-input label {
+    color: #b0b0b0;
+    font-size: 0.875rem;
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+/* Strategy Comparison Table */
+.strategy-comparison-table .dash-table-container {
+    background: transparent !important;
+}
+
+.strategy-comparison-table th {
+    background: rgba(0, 131, 148, 0.2) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    font-size: 0.75rem !important;
+    letter-spacing: 1px !important;
+}
+
+/* Advanced Settings Details */
+details {
+    margin-top: 1rem;
+}
+
+details summary {
+    color: #00a3b8;
+    cursor: pointer;
+    font-weight: 600;
+    padding: 0.5rem;
+    background: rgba(0, 131, 148, 0.1);
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+details summary:hover {
+    background: rgba(0, 131, 148, 0.2);
+}
+
+details[open] summary {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    margin-bottom: 0;
+}
+
+/* Slider Styles */
+.rc-slider {
+    margin: 1rem 0;
+}
+
+.rc-slider-track {
+    background: linear-gradient(90deg, #008394, #00a3b8);
+}
+
+.rc-slider-handle {
+    border-color: #00a3b8;
+    background: #00a3b8;
+}
+
+.rc-slider-handle:hover {
+    border-color: #00c4d8;
+}
+
+.rc-slider-handle:active {
+    border-color: #00c4d8;
+    box-shadow: 0 0 10px rgba(0, 163, 184, 0.5);
+}
+
+/* Date Picker Styles */
+.DateInput_input {
+    background: #1a1a1a !important;
+    border: 1px solid #4a4a4a !important;
+    color: white !important;
+    padding: 0.5rem !important;
+}
+
+.DateInput_input__focused {
+    border-color: #008394 !important;
+    outline: none !important;
+}
+
+.DayPicker {
+    background: #1a1a1a !important;
+}
+
+.DayPicker__horizontal {
+    background: #1a1a1a !important;
+}
+
+.CalendarMonth_caption {
+    color: white !important;
+}
+
+.DayPicker_weekHeader {
+    color: #b0b0b0 !important;
+}
+
+.CalendarDay__default {
+    background: #2a2a2a !important;
+    border: 1px solid #3a3a3a !important;
+    color: white !important;
+}
+
+.CalendarDay__default:hover {
+    background: #3a3a3a !important;
+    border: 1px solid #008394 !important;
+}
+
+.CalendarDay__selected {
+    background: #008394 !important;
+    border: 1px solid #00a3b8 !important;
+    color: white !important;
+}
+
+/* Chart Container Fixes */
+#equity-curve-chart,
+#drawdown-chart,
+#returns-distribution-chart {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Ensure graphs don't overflow */
+.backtest-card .js-plotly-plot {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Export Button */
+#export-backtest-btn {
+    background: rgba(0, 131, 148, 0.2);
+    border: 1px solid #008394;
+    color: #00a3b8;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#export-backtest-btn:hover {
+    background: rgba(0, 131, 148, 0.3);
+    transform: translateY(-2px);
+}
+
+/* Loading State */
+.backtest-loading {
+    position: relative;
+}
+
+.backtest-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+}
+
+/* Status Messages */
+.backtest-status-success {
+    background: rgba(0, 255, 136, 0.1) !important;
+    border: 1px solid #00ff88 !important;
+    color: #00ff88 !important;
+}
+
+.backtest-status-warning {
+    background: rgba(255, 217, 61, 0.1) !important;
+    border: 1px solid #ffd93d !important;
+    color: #ffd93d !important;
+}
+
+.backtest-status-error {
+    background: rgba(255, 107, 107, 0.1) !important;
+    border: 1px solid #ff6b6b !important;
+    color: #ff6b6b !important;
+}
+
+/* Risk Management Center Styles */
+/* Add these to your custom_styles.css file */
+
+/* Risk Cards */
+.risk-card {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.4));
+    border: 1px solid rgba(0, 131, 148, 0.3);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.risk-card:hover {
+    border-color: rgba(0, 131, 148, 0.5);
+    box-shadow: 0 12px 48px rgba(0, 131, 148, 0.2);
+}
+
+/* Risk Metric Cards */
+.risk-metric-card {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.risk-metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 131, 148, 0.3);
+}
+
+/* Risk Level Indicators */
+.risk-level-low {
+    color: #00ff88;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
+.risk-level-moderate {
+    color: #ffd93d;
+    text-shadow: 0 0 10px rgba(255, 217, 61, 0.5);
+}
+
+.risk-level-high {
+    color: #ff6b6b;
+    text-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
+}
+
+/* Circuit Breaker Status */
+.breaker-armed {
+    background: rgba(0, 255, 136, 0.1);
+    border: 1px solid rgba(0, 255, 136, 0.3);
+    color: #00ff88;
+}
+
+.breaker-triggered {
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid rgba(255, 107, 107, 0.3);
+    color: #ff6b6b;
+    animation: blink 1s infinite;
+}
+
+.breaker-disabled {
+    background: rgba(136, 136, 136, 0.1);
+    border: 1px solid rgba(136, 136, 136, 0.3);
+    color: #888;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Emergency Stop Button */
+#emergency-stop-btn {
+    background: linear-gradient(45deg, #ff6b6b, #ff4757);
+    border: none;
+    color: white;
+    padding: 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 700;
+    width: 100%;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+#emergency-stop-btn:hover {
+    transform: scale(1.02);
+    box-shadow: 0 0 30px rgba(255, 107, 107, 0.5);
+}
+
+#emergency-stop-btn:active {
+    transform: scale(0.98);
+}
+
+#emergency-stop-btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+#emergency-stop-btn:hover::before {
+    width: 300px;
+    height: 300px;
+}
+
+/* Risk Control Sliders */
+.risk-slider .rc-slider-track {
+    background: linear-gradient(90deg, #008394, #00a3b8);
+}
+
+.risk-slider .rc-slider-handle {
+    border-color: #00a3b8;
+    background: #00a3b8;
+    box-shadow: 0 0 10px rgba(0, 163, 184, 0.5);
+}
+
+.risk-slider .rc-slider-handle:hover {
+    border-color: #00c4d8;
+    box-shadow: 0 0 20px rgba(0, 196, 216, 0.6);
+}
+
+/* Position Limits Table */
+.position-limits-table .dash-table-container {
+    background: transparent !important;
+}
+
+.position-limits-table th {
+    background: rgba(0, 131, 148, 0.2) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    font-size: 0.75rem !important;
+}
+
+/* Alert System */
+.risk-alert {
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.risk-alert-high {
+    background: rgba(255, 107, 107, 0.15);
+    border: 1px solid rgba(255, 107, 107, 0.4);
+}
+
+.risk-alert-medium {
+    background: rgba(255, 217, 61, 0.15);
+    border: 1px solid rgba(255, 217, 61, 0.4);
+}
+
+.risk-alert-low {
+    background: rgba(0, 163, 184, 0.15);
+    border: 1px solid rgba(0, 163, 184, 0.4);
+}
+
+/* VaR Analysis */
+.var-table .dash-table-container {
+    background: rgba(0, 0, 0, 0.2) !important;
+}
+
+.var-chart {
+    position: relative;
+}
+
+.var-line {
+    stroke-dasharray: 5, 5;
+    animation: dash 2s linear infinite;
+}
+
+@keyframes dash {
+    to {
+        stroke-dashoffset: -10;
+    }
+}
+
+/* Correlation Matrix */
+.correlation-matrix {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.correlation-cell {
+    transition: all 0.3s ease;
+}
+
+.correlation-cell:hover {
+    transform: scale(1.1);
+    z-index: 10;
+}
+
+/* Stress Testing */
+.stress-test-panel {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.stress-scenario-select {
+    background: #1a1a1a !important;
+    border: 1px solid #4a4a4a !important;
+    color: white !important;
+}
+
+.stress-results {
+    animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Monte Carlo Simulation */
+.monte-carlo-panel {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.simulation-progress {
+    width: 100%;
+    height: 4px;
+    background: rgba(0, 131, 148, 0.2);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.simulation-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #008394, #00a3b8);
+    animation: progress 2s ease-in-out infinite;
+}
+
+@keyframes progress {
+    0% { width: 0; }
+    100% { width: 100%; }
+}
+
+/* Risk Report */
+.risk-report-panel {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+#generate-report-btn {
+    background: linear-gradient(45deg, #008394, #00a3b8);
+    border: none;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+#generate-report-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 131, 148, 0.4);
+}
+
+/* Chart Container Fixes for Risk Charts */
+#risk-history-chart,
+#correlation-matrix,
+#exposure-chart,
+#var-chart {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Ensure graphs don't overflow */
+.risk-card .js-plotly-plot {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Responsive Grid */
+@media (max-width: 1200px) {
+    .risk-metrics-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .risk-metrics-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    .risk-content-grid {
+        flex-direction: column !important;
+    }
+}
+
+/* Loading States */
+.risk-loading {
+    position: relative;
+    opacity: 0.6;
+}
+
+.risk-loading::after {
+    content: 'Calculating Risk...';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #00a3b8;
+    font-weight: 600;
+    text-shadow: 0 0 10px rgba(0, 163, 184, 0.5);
+}
+
+/* Tooltips */
+.risk-tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.risk-tooltip .tooltiptext {
+    visibility: hidden;
+    width: 200px;
+    background-color: rgba(0, 0, 0, 0.9);
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -100px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.risk-tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+.risk-card {
+    position: relative;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    overflow: visible; /* Changed from hidden to visible */
+}
+
+/* VaR Table specific styling */
+#var-table {
+    width: 100%;
+    margin-bottom: 1rem;
+    z-index: 1;
+    position: relative;
+}
+
+/* VaR Distribution Chart container */
+#var-distribution-chart {
+    z-index: 2;
+    position: relative;
+    background: transparent;
+}
+
+/* Prevent graph overlays */
+.js-plotly-plot {
+    position: relative !important;
+    z-index: auto !important;
+}
+
+/* Ensure sections don't overlap */
+.risk-card > div {
+    position: relative;
+    z-index: auto;
+}
+
+/* Fix for nested divs in VaR analysis */
+.risk-card .dash-table-container {
+    margin-bottom: 1.5rem !important;
+    position: relative !important;
+}
+
+/* Ensure graphs stay within their containers */
+.risk-card .js-plotly-plot .plot-container {
+    position: relative !important;
+}
+
+/* Add clear separation between components */
+.risk-card > div > div {
+    margin-bottom: 1rem;
+}
+
+/* Fix potential overflow issues */
+.risk-card .dash-graph {
+    overflow: visible !important;
+    margin-bottom: 1rem;
+}
+
+/* Ensure proper height for containers */
+.risk-card .dash-table-container,
+.risk-card .dash-graph {
+    height: auto !important;
+    min-height: 200px;
+}
+
+/* Additional spacing for nested components */
+.risk-card h3 {
+    margin-bottom: 1.5rem !important;
+}
+
+.risk-card h4 {
+    margin-top: 1rem;
+    margin-bottom: 1rem !important;
+    color: #b0b0b0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .risk-card {
+        padding: 1rem;
+    }
+    
+    .risk-card .dash-graph {
+        height: 250px !important;
+    }
+}

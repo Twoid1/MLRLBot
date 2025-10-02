@@ -1,9 +1,12 @@
 """
 kraken_connector.py
 
-Complete Kraken Exchange Connector
+Complete Kraken Exchange Connector - FIXED VERSION
 Handles real-time data, order execution, account management, and auto-recovery
 Integrates with existing historical data and handles all 15 crypto pairs
+
+FIX: API now always initialized for public endpoints (OHLCV, ticker) even in paper mode
+Private endpoints still require credentials
 
 Features:
 - Paper and Live trading modes
@@ -97,6 +100,8 @@ class KrakenConnector:
     """
     Base Kraken Exchange Connector
     Handles both paper trading and live trading
+    
+    FIXED: API now always initialized for public data access
     """
     
     # Your 15 trading pairs
@@ -118,7 +123,7 @@ class KrakenConnector:
         'LINK_USDT': 'LINKUSDT',
         'UNI_USDT': 'UNIUSDT',
         'XRP_USDT': 'XRPUSDT',
-        'BNB_USDT': None,  # Not on Kraken
+        'BNB_USDT': 'BNBUSDT',  # Not on Kraken
         'DOGE_USDT': 'DOGEUSDT',
         'LTC_USDT': 'LTCUSDT',
         'ATOM_USDT': 'ATOMUSDT',
@@ -145,14 +150,37 @@ class KrakenConnector:
         self.data_path = Path(data_path)
         self.update_existing_data = update_existing_data
         
-        # Initialize API (only for live mode)
-        if mode == 'live':
-            if not api_key or not api_secret:
-                raise ValueError("API credentials required for live trading")
-            self.api = krakenex.API(api_key, api_secret)
-        else:
+        # ===== CRITICAL FIX: ALWAYS INITIALIZE API FOR PUBLIC ENDPOINTS =====
+        # Public endpoints (OHLC, ticker, etc.) don't require authentication
+        # This allows gap filling and data fetching even in paper mode
+        try:
+            self.api = krakenex.API()
+            logger.info(" Kraken public API initialized")
+            
+            # Add credentials for private endpoints if provided
+            if api_key and api_secret:
+                self.api.key = api_key
+                self.api.secret = api_secret
+                logger.info(" API credentials loaded for private endpoints")
+                self.has_credentials = True
+            else:
+                self.has_credentials = False
+                logger.info(" No credentials provided - private endpoints unavailable")
+                
+        except Exception as e:
+            logger.error(f" Failed to initialize Kraken API: {e}")
             self.api = None
+            self.has_credentials = False
+        # ===== END FIX =====
+        
+        # Log trading mode
+        if mode == 'paper':
             logger.info("Running in paper trading mode - no real orders will be placed")
+        else:
+            if not self.has_credentials:
+                logger.warning("Live mode selected but no credentials provided!")
+            else:
+                logger.info("Running in LIVE trading mode - real orders will be placed")
         
         # WebSocket connection
         self.ws = None
@@ -265,6 +293,10 @@ class KrakenConnector:
         """
         Fill gaps between existing historical data and current time
         """
+        if not self.api:
+            logger.error("Cannot fill gaps: API not initialized")
+            return {}
+        
         if symbols is None:
             symbols = self.ALL_PAIRS
         
@@ -296,6 +328,10 @@ class KrakenConnector:
         """
         Fill data gap for a specific pair and timeframe
         """
+        if not self.api:
+            logger.error("Cannot fill gap: API not initialized")
+            return 0
+        
         existing_df = self.load_existing_data(symbol, timeframe)
         
         if existing_df.empty:
@@ -321,6 +357,10 @@ class KrakenConnector:
         """
         Fetch OHLC data using Kraken's public API
         """
+        if not self.api:
+            logger.error("Cannot fetch OHLC: API not initialized")
+            return 0
+        
         kraken_pair = self.PAIR_MAPPING.get(symbol)
         
         if kraken_pair is None:
@@ -330,7 +370,6 @@ class KrakenConnector:
         interval = self._timeframe_to_kraken_interval(timeframe)
         since = int(since_timestamp.timestamp())
         
-        url = "https://api.kraken.com/0/public/OHLC"
         all_candles = []
         last_id = since
         
@@ -342,14 +381,14 @@ class KrakenConnector:
             }
             
             try:
-                response = requests.get(url, params=params)
-                data = response.json()
+                # Use krakenex API to make the call
+                response = self.api.query_public('OHLC', params)
                 
-                if data.get('error'):
-                    logger.error(f"Kraken API error: {data['error']}")
+                if response.get('error'):
+                    logger.error(f"Kraken API error: {response['error']}")
                     break
                 
-                result = data.get('result', {})
+                result = response.get('result', {})
                 candles = result.get(kraken_pair, [])
                 
                 if not candles:
@@ -395,6 +434,76 @@ class KrakenConnector:
             return len(all_candles)
         
         return 0
+    
+    def fetch_ohlc(self, 
+                pair: str,
+                interval: int,
+                since: int = None) -> Optional[pd.DataFrame]:
+        """
+        Fetch OHLC data from Kraken (public endpoint)
+        
+        Args:
+            pair: Kraken trading pair (e.g., 'XBTUSDT')
+            interval: Timeframe in minutes (1, 5, 15, 30, 60, 240, 1440)
+            since: Unix timestamp to fetch from
+            
+        Returns:
+            DataFrame with OHLC data
+        """
+        if not self.api:
+            logger.error("Cannot fetch OHLC: API not initialized")
+            return None
+        
+        try:
+            params = {
+                'pair': pair,
+                'interval': interval
+            }
+            if since:
+                params['since'] = since
+            
+            # Query public OHLC endpoint
+            response = self.api.query_public('OHLC', params)
+            
+            if response.get('error'):
+                logger.error(f"Kraken API error: {response['error']}")
+                return None
+            
+            result = response.get('result', {})
+            
+            # Find the pair key in response
+            pair_key = None
+            for key in result.keys():
+                if key != 'last' and isinstance(result[key], list):
+                    pair_key = key
+                    break
+            
+            if not pair_key:
+                logger.warning(f"No data returned for {pair}")
+                return None
+            
+            ohlc_data = result[pair_key]
+            
+            # Convert to DataFrame
+            candles = []
+            for candle in ohlc_data:
+                candles.append({
+                    'timestamp': pd.to_datetime(int(candle[0]), unit='s'),
+                    'open': float(candle[1]),
+                    'high': float(candle[2]),
+                    'low': float(candle[3]),
+                    'close': float(candle[4]),
+                    'volume': float(candle[6])
+                })
+            
+            df = pd.DataFrame(candles)
+            logger.debug(f"Fetched {len(df)} candles for {pair}")
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"Error fetching OHLC: {e}")
+            return None
     
     # ================== WEBSOCKET ==================
     
@@ -704,10 +813,10 @@ class KrakenConnector:
     
     def _place_live_order(self, order: KrakenOrder) -> Dict[str, Any]:
         """Place a live order on Kraken"""
-        if not self.api:
+        if not self.api or not self.has_credentials:
             return {
                 'success': False,
-                'error': 'No API connection for live trading',
+                'error': 'No API connection or credentials for live trading',
                 'order_id': None
             }
         
@@ -771,6 +880,12 @@ class KrakenConnector:
                 'message': f'Paper order {order_id} cancelled'
             }
         else:
+            if not self.has_credentials:
+                return {
+                    'success': False,
+                    'error': 'Credentials required for cancelling orders'
+                }
+            
             try:
                 result = self.api.query_private('CancelOrder', {'txid': order_id})
                 
@@ -819,7 +934,8 @@ class KrakenConnector:
     
     def _get_live_balance(self) -> Dict[str, KrakenBalance]:
         """Get live account balance"""
-        if not self.api:
+        if not self.api or not self.has_credentials:
+            logger.error("Cannot get live balance: credentials required")
             return {}
         
         try:
@@ -971,6 +1087,7 @@ class KrakenConnector:
             'mode': self.mode,
             'websocket_connected': self.ws_running,
             'api_connected': self.api is not None,
+            'has_credentials': self.has_credentials,
             'pairs_tracked': len(self.latest_prices),
             'orderbook_pairs': len(self.orderbook),
             'recent_trades_count': len(self.trades_stream),
@@ -1157,7 +1274,7 @@ class ResilientKrakenConnector(KrakenConnector):
                 
                 time.sleep(5)
                 if self.ws_running:
-                    logger.info(" Recovery successful!")
+                    logger.info("Recovery successful!")
                     self.connection_healthy = True
                     self.last_heartbeat = datetime.now()
                     return
@@ -1186,32 +1303,32 @@ class ResilientKrakenConnector(KrakenConnector):
     
     def smart_recovery_start(self) -> None:
         """Smart start with recovery"""
-        print("\n === SMART RECOVERY START ===\n")
+        print("\n=== SMART RECOVERY START ===\n")
         
         if self.last_update_times:
             last_run = max(self.last_update_times.values())
             downtime = datetime.now() - last_run
-            print(f" Last run: {last_run}")
-            print(f" Downtime: {downtime}\n")
+            print(f"Last run: {last_run}")
+            print(f"Downtime: {downtime}\n")
         else:
-            print(" First run detected\n")
+            print("First run detected\n")
         
-        print(" Checking for data gaps...")
+        print("Checking for data gaps...")
         status_df = self.check_data_status()
         needs_update = status_df[status_df['status'] == 'NEEDS_UPDATE']
         
         if not needs_update.empty:
-            print(f" Found {len(needs_update)} files with gaps")
-            print("\n Filling gaps...")
+            print(f"Found {len(needs_update)} files with gaps")
+            print("\nFilling gaps...")
             
             total = len(needs_update)
             for idx, row in needs_update.iterrows():
                 print(f"  [{idx+1}/{total}] Updating {row['symbol']} {row['timeframe']}...")
                 self._fill_gap_for_pair(row['symbol'], row['timeframe'])
         else:
-            print(" All data is up to date!\n")
+            print("All data is up to date!\n")
         
-        print(" Connecting to real-time feeds...")
+        print("Connecting to real-time feeds...")
         self.connect_websocket(
             pairs=['BTC_USDT', 'ETH_USDT', 'SOL_USDT'],
             channels=['ticker', 'ohlc', 'trade']
@@ -1219,12 +1336,12 @@ class ResilientKrakenConnector(KrakenConnector):
         
         time.sleep(3)
         if self.ws_running and self.connection_healthy:
-            print(" System fully operational!")
-            print(f" Tracking {len(self.latest_prices)} pairs")
-            print(" Auto-recovery: ENABLED")
-            print(" Gap monitoring: ACTIVE")
+            print("System fully operational!")
+            print(f"Tracking {len(self.latest_prices)} pairs")
+            print("Auto-recovery: ENABLED")
+            print("Gap monitoring: ACTIVE")
         else:
-            print(" Warning: Connection not fully established")
+            print("Warning: Connection not fully established")
         
         print("\n=== READY FOR TRADING ===\n")
     
@@ -1262,7 +1379,7 @@ class MultiAssetKrakenConnector(ResilientKrakenConnector):
     
     def initialize_all_pairs(self) -> Dict[str, str]:
         """Initialize and check all 15 pairs"""
-        print("\n === INITIALIZING ALL 15 PAIRS ===\n")
+        print("\n=== INITIALIZING ALL 15 PAIRS ===\n")
         
         pair_status = {}
         
@@ -1275,11 +1392,11 @@ class MultiAssetKrakenConnector(ResilientKrakenConnector):
                 if not df.empty:
                     last_date = df.index[-1]
                     rows = len(df)
-                    pair_status[f"{pair}_{timeframe}"] = f" {rows} rows, last: {last_date.strftime('%Y-%m-%d')}"
+                    pair_status[f"{pair}_{timeframe}"] = f"{rows} rows, last: {last_date.strftime('%Y-%m-%d')}"
                 else:
-                    pair_status[f"{pair}_{timeframe}"] = " No data"
+                    pair_status[f"{pair}_{timeframe}"] = "No data"
         
-        print("\n Data Status Summary:")
+        print("\nData Status Summary:")
         print("-" * 50)
         
         for pair in self.ALL_PAIRS:
@@ -1292,7 +1409,7 @@ class MultiAssetKrakenConnector(ResilientKrakenConnector):
     
     def update_all_pairs(self, parallel: bool = True) -> Dict[str, int]:
         """Update all 15 pairs efficiently"""
-        print("\n === UPDATING ALL 15 PAIRS ===\n")
+        print("\n=== UPDATING ALL 15 PAIRS ===\n")
         
         results = {}
         start_time = datetime.now()
@@ -1312,9 +1429,9 @@ class MultiAssetKrakenConnector(ResilientKrakenConnector):
                         candles = future.result()
                         results[pair_tf] = candles
                         if candles > 0:
-                            print(f" {pair_tf}: Updated {candles} candles")
+                            print(f"{pair_tf}: Updated {candles} candles")
                     except Exception as e:
-                        print(f" {pair_tf}: Error - {e}")
+                        print(f"{pair_tf}: Error - {e}")
                         results[pair_tf] = 0
         else:
             for pair in self.ALL_PAIRS:
@@ -1338,7 +1455,7 @@ class MultiAssetKrakenConnector(ResilientKrakenConnector):
         elapsed = (datetime.now() - start_time).seconds
         total_candles = sum(results.values())
         
-        print(f"\n Update Complete:")
+        print(f"\nUpdate Complete:")
         print(f"  Time: {elapsed} seconds")
         print(f"  Total candles: {total_candles}")
         print(f"  Pairs updated: {len([v for v in results.values() if v > 0])}")
@@ -1386,7 +1503,7 @@ class MultiAssetKrakenConnector(ResilientKrakenConnector):
     
     def smart_start_all_pairs(self) -> None:
         """Comprehensive startup for all 15 pairs"""
-        print("\n === SMART START FOR ALL 15 PAIRS ===\n")
+        print("\n=== SMART START FOR ALL 15 PAIRS ===\n")
         
         print("Step 1: Checking all pairs...")
         self.initialize_all_pairs()
@@ -1403,7 +1520,7 @@ class MultiAssetKrakenConnector(ResilientKrakenConnector):
         
         print("\nStep 4: Starting monitors...")
         
-        print("\n === ALL SYSTEMS OPERATIONAL ===")
+        print("\n=== ALL SYSTEMS OPERATIONAL ===")
         prices_df = self.get_all_current_prices()
         active_pairs = len(prices_df[prices_df['price'].notna()])
         print(f"  Active pairs: {active_pairs}/{len(self.ALL_PAIRS)}")
@@ -1457,4 +1574,4 @@ if __name__ == "__main__":
     status = kraken.get_system_status()
     print(f"\nSystem Status: {status}")
     
-    print("\n Kraken Connector Ready for Production!")
+    print("\nKraken Connector Ready for Production!")

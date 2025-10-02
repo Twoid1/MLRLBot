@@ -828,7 +828,7 @@ class DataValidator:
                         'errors': len(validation.errors),
                         'warnings': len(validation.warnings),
                         'fixed': len(validation.corrections) > 0,
-                        'status': 'Y' if validation.quality_score > 95 else '⚠️' if validation.quality_score > 80 else 'N'
+                        'status': 'Y' if validation.quality_score > 95 else '️W' if validation.quality_score > 80 else 'N'
                     })
             
             # Cross-timeframe validation if we have multiple timeframes
