@@ -1,0 +1,29 @@
+{
+  "num_workers": 4,
+  "batch_size": 64,
+  "rl_batch_size": 64,
+  "hidden_dims": [
+    128,
+    128
+  ],
+  "ml_gpu_params": {
+    "tree_method": "gpu_hist",
+    "gpu_id": 0,
+    "predictor": "gpu_predictor",
+    "max_bin": 256
+  },
+  "use_gpu": true,
+  "rl_update_frequency": 4,
+  "preload_data": false,
+  "cache_features": true,
+  "system_info": {
+    "cpu_count": 6,
+    "cpu_count_logical": 12,
+    "ram_gb": 15.881847381591797,
+    "gpu_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 3070",
+    "gpu_memory_gb": 7.9993896484375,
+    "cuda_version": "12.4",
+    "gpu_count": 1
+  }
+}

@@ -542,7 +542,7 @@ class DQNAgent:
     
     def replay(self, batch_size: Optional[int] = None, beta: float = 0.4) -> Optional[float]:
         """
-        Train on batch from replay buffer
+        Train on batch from replay buffer - FIXED VERSION
         
         Args:
             batch_size: Batch size (optional, uses config if not provided)
@@ -556,23 +556,43 @@ class DQNAgent:
             batch_size = self.config.batch_size
             
         if len(self.memory) < max(batch_size, self.config.min_memory_size):
-            return None  # Return None instead of 0.0 for consistency with test expectations
+            return None
         
         # Sample batch
         if self.config.use_prioritized_replay:
+            # Prioritized replay returns: (experiences, indices, weights)
             experiences, indices, weights = self.memory.sample(batch_size, beta)
             weights = torch.FloatTensor(weights).to(self.device)
+            
+            # Extract tensors from Experience namedtuples
+            states = torch.FloatTensor([e.state for e in experiences]).to(self.device)
+            actions = torch.LongTensor([e.action for e in experiences]).to(self.device)
+            rewards = torch.FloatTensor([e.reward for e in experiences]).to(self.device)
+            next_states = torch.FloatTensor([e.next_state for e in experiences]).to(self.device)
+            dones = torch.FloatTensor([e.done for e in experiences]).to(self.device)
         else:
-            experiences = self.memory.sample(batch_size)
+            # Standard replay buffer returns: (states, actions, rewards, next_states, dones) - already tensors!
+            result = self.memory.sample(batch_size)
+            
+            # Check if result is a tuple of tensors (standard buffer) or list of experiences
+            if isinstance(result, tuple) and len(result) == 5:
+                # Already tensors from ReplayBuffer.sample()
+                states, actions, rewards, next_states, dones = result
+                states = states.to(self.device)
+                actions = actions.to(self.device)
+                rewards = rewards.to(self.device)
+                next_states = next_states.to(self.device)
+                dones = dones.to(self.device)
+            else:
+                # List of Experience namedtuples (shouldn't happen with current code, but handle it)
+                states = torch.FloatTensor([e.state for e in result]).to(self.device)
+                actions = torch.LongTensor([e.action for e in result]).to(self.device)
+                rewards = torch.FloatTensor([e.reward for e in result]).to(self.device)
+                next_states = torch.FloatTensor([e.next_state for e in result]).to(self.device)
+                dones = torch.FloatTensor([e.done for e in result]).to(self.device)
+            
             weights = torch.ones(batch_size).to(self.device)
             indices = None
-        
-        # Prepare batch tensors
-        states = torch.FloatTensor([e.state for e in experiences]).to(self.device)
-        actions = torch.LongTensor([e.action for e in experiences]).to(self.device)
-        rewards = torch.FloatTensor([e.reward for e in experiences]).to(self.device)
-        next_states = torch.FloatTensor([e.next_state for e in experiences]).to(self.device)
-        dones = torch.FloatTensor([e.done for e in experiences]).to(self.device)
         
         # Current Q values
         self.q_network.train()
@@ -617,11 +637,7 @@ class DQNAgent:
         # Update counter
         self.update_count += 1
         
-        # Store loss
-        loss_value = weighted_loss.item()
-        self.losses.append(loss_value)
-        
-        return loss_value
+        return weighted_loss.item()
     
     def update_target_network(self, soft: bool = False):
         """

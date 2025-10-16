@@ -1,0 +1,77 @@
+{
+  "start_time": "2025-10-16T14:56:31.974512",
+  "stages": {
+    "Data Loading": {
+      "start_time": 1760651792.6593425,
+      "total_items": 15,
+      "completed_items": 15,
+      "status": "completed",
+      "progress": 100.0,
+      "elapsed_time": 2.862006425857544,
+      "end_time": 1760651795.9206443,
+      "total_time": 3.2613017559051514,
+      "final_metrics": {
+        "datasets_loaded": 15,
+        "time_seconds": 3.261300563812256
+      }
+    },
+    "Feature Engineering": {
+      "start_time": 1760651795.9212484,
+      "total_items": 5,
+      "completed_items": 0,
+      "status": "completed",
+      "end_time": 1760651796.0475671,
+      "total_time": 0.12631869316101074,
+      "final_metrics": {
+        "feature_sets": 5,
+        "time_seconds": 0.12631988525390625
+      }
+    },
+    "Data Splitting": {
+      "start_time": 1760651796.0481546,
+      "total_items": 5,
+      "completed_items": 5,
+      "status": "completed",
+      "progress": 100.0,
+      "elapsed_time": 0.13502049446105957,
+      "end_time": 1760651796.183805,
+      "total_time": 0.1356503963470459,
+      "final_metrics": {
+        "time_seconds": 0.1356525421142578
+      }
+    },
+    "ML Training": {
+      "start_time": 1760651796.184284,
+      "total_items": 100,
+      "completed_items": 100,
+      "status": "completed",
+      "progress": 100.0,
+      "elapsed_time": 170.1605761051178,
+      "metrics": {
+        "accuracy": 0.6834525149703764,
+        "f1_score": 0.6739366300850472
+      },
+      "end_time": 1760651966.345706,
+      "total_time": 170.16142201423645,
+      "final_metrics": {
+        "time_seconds": 170.16142106056213,
+        "accuracy": 0.6834525149703764
+      }
+    },
+    "RL Training": {
+      "start_time": 1760651966.3463085,
+      "total_items": 100,
+      "completed_items": 2,
+      "status": "running",
+      "progress": 2.0,
+      "elapsed_time": 565.7383501529694,
+      "metrics": {
+        "current_reward": -146.12983959234296,
+        "epsilon": 0.01,
+        "avg_reward_last_10": NaN
+      }
+    }
+  },
+  "current_stage": "RL Training",
+  "overall_progress": 0.0
+}
