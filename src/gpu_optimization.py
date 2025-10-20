@@ -106,6 +106,8 @@ class GPUOptimizer:
         config['rl_update_frequency'] = 4 if self.gpu_available else 8
         config['preload_data'] = self.system_info['ram_gb'] >= 16
         config['cache_features'] = True
+
+        config['precompute_observations'] = True
         
         return config
     

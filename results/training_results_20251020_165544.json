@@ -1,6 +1,6 @@
 {
-  "start_time": "2025-10-15T23:48:59.086968",
-  "end_time": "2025-10-16T11:45:51.857644",
+  "start_time": "2025-10-20T16:48:53.985686",
+  "end_time": "2025-10-20T16:55:44.637916",
   "speedup_metrics": {},
   "ml_results": {
     "train_samples": 189207,
@@ -36,9 +36,5 @@
     "train_accuracy": 0.6834525149703764,
     "train_f1": 0.6739366300850472
   },
-  "rl_results": {
-    "total_episodes": 100,
-    "final_epsilon": 0.01,
-    "avg_final_reward": -234.64949901451473
-  }
+  "rl_results": null
 }

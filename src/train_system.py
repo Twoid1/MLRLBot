@@ -26,6 +26,7 @@ from src.models.dqn_agent import DQNAgent, DQNConfig
 from src.environment.trading_env import TradingEnvironment
 from src.utils.logger import setup_logger
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -91,7 +92,7 @@ class SystemTrainer:
             'timeframes': ['1h', '4h', '1d'],  # Can expand to ['1m', '5m', '15m', '1h', '4h', '1d']
             
             # Data settings
-            'start_date': '2020-01-01',
+            'start_date': '2021-01-01',
             'end_date': '2025-01-01',  # Training ends at beginning of 2025
             'train_split': 0.8,
             'validation_split': 0.1,
@@ -516,295 +517,299 @@ class SystemTrainer:
             logger.info("  Top 10 features:")
             for i, row in importance.iterrows():
                 logger.info(f"    {i+1}. {row['feature']}: {row['importance']:.4f}")
+
+    def _filter_features_to_selected(self, data_dict: Dict) -> Dict:
+        """
+        Filter features to only include selected features from ML training
+        
+        Args:
+            data_dict: Dict {asset: (ohlcv_df, features_df)}
+            
+        Returns:
+            Dict with filtered features {asset: (ohlcv_df, filtered_features_df)}
+        """
+        if not hasattr(self, 'ml_predictor') or self.ml_predictor is None:
+            logger.warning(" No ML predictor found - using all features")
+            return data_dict
+        
+        if not hasattr(self.ml_predictor, 'selected_features') or not self.ml_predictor.selected_features:
+            logger.warning(" No selected features found - using all features")
+            return data_dict
+        
+        selected_features = self.ml_predictor.selected_features
+        logger.info(f"\n Filtering features to {len(selected_features)} selected features...")
+        
+        filtered_data = {}
+        
+        for asset, (ohlcv_df, features_df) in data_dict.items():
+            # Find which selected features exist in this dataframe
+            available_features = [f for f in selected_features if f in features_df.columns]
+            
+            if len(available_features) < len(selected_features):
+                missing = len(selected_features) - len(available_features)
+                logger.warning(f"  {asset}: Only {len(available_features)}/{len(selected_features)} features available ({missing} missing)")
+            
+            # Filter to only selected features
+            filtered_features = features_df[available_features].copy()
+            
+            logger.info(f"  {asset}: {features_df.shape[1]} → {filtered_features.shape[1]} features")
+            
+            filtered_data[asset] = (ohlcv_df, filtered_features)
+        
+        return filtered_data
     
     def _train_rl_agent(self, train_data: Dict, val_data: Dict, test_data: Dict):
         """
-        ⚡ OPTIMIZED: Train RL agent with pre-computation and optimizations
-        
-        Args:
-            train_data: Training data dict {asset: (ohlcv_df, features_df)}
-            val_data: Validation data dict
-            test_data: Test data dict
+        Train RL agent with simple timing logs
         """
+        
         logger.info("\n" + "="*80)
-        logger.info("STAGE 5: RL AGENT TRAINING (OPTIMIZED)")
+        logger.info("RL AGENT TRAINING (WITH TIMING)")
         logger.info("="*80)
         
-        # Use primary asset for RL training
+        # Setup
         primary_asset = self.config['assets'][0]
-        
-        if primary_asset not in train_data:
-            logger.error(f"Primary asset {primary_asset} not in training data")
-            raise ValueError(f"Primary asset {primary_asset} not found in training data")
-        
         ohlcv_train, features_train = train_data[primary_asset]
-        ohlcv_val, features_val = val_data.get(primary_asset, (None, None))
         
-        logger.info(f"  Training on: {primary_asset}")
-        logger.info(f"  Training samples: {len(ohlcv_train):,}")
-        if ohlcv_val is not None:
-            logger.info(f"  Validation samples: {len(ohlcv_val):,}")
+        logger.info(f"Training on: {primary_asset}")
+        logger.info(f"Training samples: {len(ohlcv_train):,}")
         
-        # ⚡ CREATE OPTIMIZED TRADING ENVIRONMENT
-        logger.info("\n  Creating OPTIMIZED trading environment...")
-        logger.info("   Pre-computation enabled for 10-30x speedup!")
+        # ⏱️ TIME: Create environment
+        t_start = time.time()
+        logger.info("\n  Creating trading environment...")
         
-        env_start_time = time.time()
-        
+        from src.environment.trading_env import TradingEnvironment
         env = TradingEnvironment(
             df=ohlcv_train,
             initial_balance=self.config['initial_balance'],
             fee_rate=self.config['fee_rate'],
             slippage=self.config.get('slippage', 0.001),
             features_df=features_train,
+            selected_features=self.ml_predictor.selected_features if hasattr(self.ml_predictor, 'selected_features') else None,  # ← ADD THIS
             stop_loss=self.config.get('stop_loss', 0.05),
             take_profit=self.config.get('take_profit', 0.10),
-            precompute_observations=self.config.get('precompute_observations', True)  # ← ENABLED!
+            precompute_observations=self.config.get('precompute_observations', True)
         )
         
-        env_creation_time = time.time() - env_start_time
+        t_env = time.time() - t_start
+        logger.info(f" Environment created in {t_env:.2f}s")
+        logger.info(f"  Pre-computation: {'ENABLED' if env.precompute_observations else 'DISABLED'}")
         
-        # Store speedup metrics
-        self.training_results['speedup_metrics']['env_creation_time'] = env_creation_time
-        self.training_results['speedup_metrics']['precomputation_enabled'] = env.precompute_observations
+        # ⏱️ TIME: Initialize agent
+        t_start = time.time()
+        logger.info("\n  Initializing RL agent...")
         
-        logger.info(f"   Environment created in {env_creation_time:.2f}s")
+        from src.models.dqn_agent import DQNAgent, DQNConfig
         
-        # Initialize RL agent with OPTIMIZED settings
         state_dim = env.observation_space_shape[0]
         action_dim = env.action_space_n
         
-        logger.info(f"\n  Environment setup:")
-        logger.info(f"    State dimension: {state_dim}")
-        logger.info(f"    Action space: {action_dim} actions")
-        logger.info(f"    Initial balance: ${self.config['initial_balance']:,.2f}")
-        logger.info(f"    Fee rate: {self.config['fee_rate']*100:.2f}%")
-        logger.info(f"    Pre-computed observations: {env.precompute_observations}")
-        
-        # ⚡ CONFIGURE RL AGENT WITH OPTIMIZATIONS
         rl_config = DQNConfig(
             state_dim=state_dim,
             action_dim=action_dim,
             hidden_dims=self.config['rl_hidden_dims'],
             learning_rate=self.config.get('rl_learning_rate', 0.0001),
             gamma=self.config.get('rl_gamma', 0.99),
-            epsilon_start=self.config.get('rl_epsilon_start', 1.0),
-            epsilon_end=self.config.get('rl_epsilon_end', 0.01),
-            epsilon_decay=self.config.get('rl_epsilon_decay', 0.995),
-            batch_size=self.config.get('rl_batch_size', 1024),  # ← OPTIMIZED: 256 vs 64
-            memory_size=self.config.get('rl_memory_size', 50000),  # ← INCREASED
-            target_update_every=self.config.get('rl_target_update', 500),  # ← Less frequent
-            update_every=self.config.get('rl_update_every', 10),  # ← OPTIMIZED: 10 vs 4
+            batch_size=self.config.get('rl_batch_size', 256),
+            memory_size=self.config.get('rl_memory_size', 50000),
+            update_every=self.config.get('rl_update_every', 10),
             use_double_dqn=self.config['use_double_dqn'],
             use_dueling_dqn=self.config['use_dueling_dqn'],
             use_prioritized_replay=self.config['use_prioritized_replay']
         )
         
-        logger.info(f"\n  Agent configuration (OPTIMIZED):")
-        logger.info(f"    Architecture: {'Dueling ' if rl_config.use_dueling_dqn else ''}{'Double ' if rl_config.use_double_dqn else ''}DQN")
-        logger.info(f"    Prioritized Replay: {rl_config.use_prioritized_replay}")
-        logger.info(f"    Hidden layers: {rl_config.hidden_dims}")
-        logger.info(f"    Batch size: {rl_config.batch_size} (optimized)")
-        logger.info(f"    Update frequency: every {rl_config.update_every} steps (optimized)")
-        logger.info(f"    Learning rate: {rl_config.learning_rate}")
-        logger.info(f"    Memory size: {rl_config.memory_size:,}")
-        
         self.rl_agent = DQNAgent(rl_config)
         
-        # ⚡ FAST TRAINING LOOP
+        t_agent = time.time() - t_start
+        logger.info(f" Agent initialized in {t_agent:.2f}s")
+        logger.info(f"  Device: {self.rl_agent.device}")
+        
+        # Training loop
         n_episodes = self.config['rl_episodes']
-        logger.info(f"\n  Starting FAST training for {n_episodes} episodes...")
-        logger.info(f"  Progress displayed every 10 episodes\n")
+        logger.info(f"\n  Starting training for {n_episodes} episodes...\n")
         
         episode_results = []
         best_reward = float('-inf')
-        best_episode = 0
         
-        training_start_time = time.time()
+        # Track cumulative times for analysis
+        cumulative_times = {
+            'reset': 0,
+            'act': 0,
+            'step': 0,
+            'remember': 0,
+            'replay': 0,
+            'other': 0
+        }
+        
+        training_start = time.time()
         
         for episode in range(n_episodes):
             episode_start = time.time()
             
-            # Reset environment
+            # RESET
+            t = time.time()
             state = env.reset()
+            t_reset = time.time() - t
+            cumulative_times['reset'] += t_reset
+            
             episode_reward = 0
-            episode_loss = 0
             steps = 0
             done = False
             
+            step_times = []
+            act_times = []
+            remember_times = []
+            replay_times = []
+            
             # Episode loop
             while not done and steps < len(ohlcv_train) - 100:
-                # Select action
+                
+                # ACT
+                t = time.time()
                 action = self.rl_agent.act(state, training=True)
+                t_act = time.time() - t
+                act_times.append(t_act)
+                cumulative_times['act'] += t_act
                 
-                # Execute action (⚡ FAST: uses pre-computed observations)
+                # STEP
+                t = time.time()
                 next_state, reward, done, truncated, info = env.step(action)
+                t_step = time.time() - t
+                step_times.append(t_step)
+                cumulative_times['step'] += t_step
                 
-                # Store experience
+                # REMEMBER
+                t = time.time()
                 self.rl_agent.remember(state, action, reward, next_state, done)
+                t_remember = time.time() - t
+                remember_times.append(t_remember)
+                cumulative_times['remember'] += t_remember
                 
-                # Train (less frequently with larger batches)
+                # REPLAY (train)
                 if len(self.rl_agent.memory) > 1000 and steps % rl_config.update_every == 0:
+                    t = time.time()
                     loss = self.rl_agent.replay(batch_size=rl_config.batch_size)
-                    if loss is not None:
-                        episode_loss += loss
+                    t_replay = time.time() - t
+                    replay_times.append(t_replay)
+                    cumulative_times['replay'] += t_replay
                 
-                # Update state
                 state = next_state
                 episode_reward += reward
                 steps += 1
             
-            # Update target network (less frequently)
+            # Update target network
             if episode % 50 == 0:
                 self.rl_agent.update_target_network()
             
             # Decay epsilon
             self.rl_agent.decay_epsilon()
             
-            # Calculate episode statistics
-            episode_duration = time.time() - episode_start
+            episode_time = time.time() - episode_start
             
-            stats = {
+            # Store results
+            episode_results.append({
                 'episode': episode + 1,
-                'total_reward': episode_reward,
-                'average_reward': episode_reward / steps if steps > 0 else 0,
-                'average_loss': episode_loss / (steps / rl_config.update_every) if steps > 0 else 0,
-                'steps': steps,
-                'epsilon': self.rl_agent.epsilon,
-                'portfolio_value': info.get('portfolio_value', 0),
-                'win_rate': info.get('win_rate', 0),
-                'sharpe_ratio': info.get('sharpe_ratio', 0),
-                'max_drawdown': info.get('max_drawdown', 0),
-                'num_trades': info.get('num_trades', 0),
-                'duration': episode_duration
-            }
+                'reward': episode_reward,
+                'time': episode_time,
+                'steps': steps
+            })
             
-            episode_results.append(stats)
-            
-            # Track best
             if episode_reward > best_reward:
                 best_reward = episode_reward
-                best_episode = episode + 1
-                
-                # Save best model
-                best_model_path = Path('models/rl/best_agent.pth')
-                best_model_path.parent.mkdir(parents=True, exist_ok=True)
-                self.rl_agent.save(best_model_path)
             
-            # Progress reporting every 10 episodes
+            # LOG TIMING EVERY 10 EPISODES
             if (episode + 1) % 10 == 0:
                 recent = episode_results[-10:]
-                avg_reward = np.mean([e['total_reward'] for e in recent])
-                avg_portfolio = np.mean([e['portfolio_value'] for e in recent])
-                avg_sharpe = np.mean([e['sharpe_ratio'] for e in recent])
-                avg_duration = np.mean([e['duration'] for e in recent])
+                avg_reward = np.mean([e['reward'] for e in recent])
+                avg_time = np.mean([e['time'] for e in recent])
                 
-                elapsed = time.time() - training_start_time
-                eps_per_sec = (episode + 1) / elapsed
-                eta_seconds = (n_episodes - episode - 1) / eps_per_sec
-                eta_minutes = eta_seconds / 60
+                elapsed = time.time() - training_start
+                speed = (episode + 1) / elapsed
+                eta = (n_episodes - episode - 1) / speed / 60
                 
-                logger.info(f"  Ep {episode+1:4d}/{n_episodes} | "
-                           f"Reward: {episode_reward:7.1f} | "
-                           f"Avg(10): {avg_reward:7.1f} | "
-                           f"Portfolio: ${avg_portfolio:,.0f} | "
-                           f"Sharpe: {avg_sharpe:5.2f} | "
-                           f"ε: {self.rl_agent.epsilon:.3f} | "
-                           f"Speed: {eps_per_sec:.1f} ep/s | "
-                           f"Time/ep: {avg_duration:.1f}s | "
-                           f"ETA: {eta_minutes:.0f}m")
-            
-            # Save checkpoint periodically
-            save_interval = self.config.get('save_interval', 100)
-            if (episode + 1) % save_interval == 0:
-                checkpoint_path = Path(f'models/rl/checkpoint_ep{episode+1}.pth')
-                checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-                self.rl_agent.save(checkpoint_path)
-                logger.info(f"   Checkpoint saved at episode {episode+1}")
+                logger.info(f"Episode {episode+1}/{n_episodes} | "
+                        f"Reward: {episode_reward:.1f} | "
+                        f"Avg(10): {avg_reward:.1f} | "
+                        f"Time: {episode_time:.2f}s | "
+                        f"Speed: {speed:.2f} ep/s | "
+                        f"ETA: {eta:.0f}m")
+                
+                # Detailed timing breakdown
+                logger.info(f"    Episode Timing Breakdown (avg per step):")
+                logger.info(f"     env.reset():      {t_reset*1000:.2f}ms")
+                logger.info(f"     agent.act():      {np.mean(act_times)*1000:.2f}ms  ({len(act_times)} calls)")
+                logger.info(f"     env.step():       {np.mean(step_times)*1000:.2f}ms  ({len(step_times)} calls)")
+                logger.info(f"     agent.remember(): {np.mean(remember_times)*1000:.2f}ms  ({len(remember_times)} calls)")
+                if replay_times:
+                    logger.info(f"     agent.replay():   {np.mean(replay_times)*1000:.2f}ms  ({len(replay_times)} calls)")
+                logger.info("")
         
-        # Training complete
-        total_duration = time.time() - training_start_time
-        avg_episode_time = total_duration / n_episodes
+        # FINAL TIMING SUMMARY
+        total_time = time.time() - training_start
         
-        # Store speedup metrics
-        self.training_results['speedup_metrics']['total_training_time'] = total_duration
-        self.training_results['speedup_metrics']['avg_episode_time'] = avg_episode_time
-        self.training_results['speedup_metrics']['episodes_per_second'] = n_episodes / total_duration
+        logger.info("\n" + "="*80)
+        logger.info("TRAINING COMPLETE - TIMING SUMMARY")
+        logger.info("="*80)
+        logger.info(f"Total training time: {total_time:.1f}s ({total_time/60:.1f} minutes)")
+        logger.info(f"Episodes: {n_episodes}")
+        logger.info(f"Avg time per episode: {total_time/n_episodes:.2f}s")
+        logger.info(f"Speed: {n_episodes/total_time:.2f} episodes/second")
         
-        logger.info(f"\n{'='*80}")
-        logger.info("RL TRAINING COMPLETE")
-        logger.info(f"{'='*80}")
-        logger.info(f"  Total time: {total_duration/60:.1f} minutes ({total_duration/3600:.2f} hours)")
-        logger.info(f"  Speed: {avg_episode_time:.2f} seconds per episode")
-        logger.info(f"  Throughput: {n_episodes/total_duration:.2f} episodes/second")
-        logger.info(f"  Best episode: {best_episode} (Reward: {best_reward:.2f})")
+        logger.info(f"\n  Cumulative Time Breakdown:")
+        logger.info(f"  env.reset():      {cumulative_times['reset']:.2f}s  ({cumulative_times['reset']/total_time*100:.1f}%)")
+        logger.info(f"  agent.act():      {cumulative_times['act']:.2f}s  ({cumulative_times['act']/total_time*100:.1f}%)")
+        logger.info(f"  env.step():       {cumulative_times['step']:.2f}s  ({cumulative_times['step']/total_time*100:.1f}%)")
+        logger.info(f"  agent.remember(): {cumulative_times['remember']:.2f}s  ({cumulative_times['remember']/total_time*100:.1f}%)")
+        logger.info(f"  agent.replay():   {cumulative_times['replay']:.2f}s  ({cumulative_times['replay']/total_time*100:.1f}%)")
         
-        # Final 10 episodes performance
-        final_10 = episode_results[-10:]
-        logger.info(f"\n  Final 10 Episodes:")
-        logger.info(f"    Avg Reward: {np.mean([e['total_reward'] for e in final_10]):.2f}")
-        logger.info(f"    Avg Portfolio: ${np.mean([e['portfolio_value'] for e in final_10]):,.2f}")
-        logger.info(f"    Avg Sharpe: {np.mean([e['sharpe_ratio'] for e in final_10]):.3f}")
-        logger.info(f"    Avg Win Rate: {np.mean([e['win_rate'] for e in final_10])*100:.1f}%")
+        # Identify slowest operation
+        slowest = max(cumulative_times.items(), key=lambda x: x[1])
+        logger.info(f"\n🔍 SLOWEST OPERATION: {slowest[0]} ({slowest[1]:.2f}s, {slowest[1]/total_time*100:.1f}%)")
         
-        # Validate on validation set if available
-        if ohlcv_val is not None and features_val is not None:
-            logger.info("\n  Validating on holdout data...")
-            val_env = TradingEnvironment(
-                df=ohlcv_val,
-                initial_balance=self.config['initial_balance'],
-                fee_rate=self.config['fee_rate'],
-                slippage=self.config.get('slippage', 0.001),
-                features_df=features_val,
-                stop_loss=self.config.get('stop_loss', 0.05),
-                take_profit=self.config.get('take_profit', 0.10),
-                precompute_observations=True  # ← Also optimize validation
-            )
-            
-            val_stats = self.rl_agent.evaluate(val_env)
-            
-            logger.info(f"    Validation Reward: {val_stats['mean_reward']:.2f}")
-            logger.info(f"    Validation Portfolio: ${val_stats['mean_portfolio_value']:,.2f}")
-            logger.info(f"    Validation Sharpe: {val_stats.get('mean_sharpe_ratio', 0):.3f}")
-            logger.info(f"    Validation Win Rate: {val_stats.get('mean_win_rate', 0)*100:.1f}%")
+        # Provide recommendations
+        if slowest[0] == 'step' and slowest[1]/total_time > 0.3:
+            logger.info(f"     env.step() is taking {slowest[1]/total_time*100:.1f}% of time")
+            logger.info(f"    Pre-computation enabled: {env.precompute_observations}")
+            if not env.precompute_observations:
+                logger.info(f"    TRY: Enable pre-computation for massive speedup!")
+            else:
+                logger.info(f"    Pre-computation is enabled but still slow")
+                logger.info(f"    Check if _get_observation() is being called in step()")
         
-        # Save final model
-        final_model_path = Path('models/rl/final_agent.pth')
-        final_model_path.parent.mkdir(parents=True, exist_ok=True)
-        self.rl_agent.save(final_model_path)
-        logger.info(f"\n   Final model saved: {final_model_path}")
+        elif slowest[0] == 'replay' and slowest[1]/total_time > 0.4:
+            logger.info(f"     agent.replay() is taking {slowest[1]/total_time*100:.1f}% of time")
+            logger.info(f"    Current: update_every={rl_config.update_every}, batch_size={rl_config.batch_size}")
+            logger.info(f"    TRY: Increase update_every to 20 (train less often)")
+            logger.info(f"    TRY: Reduce batch_size to 128 (faster batches)")
         
-        # Store comprehensive results
+        elif slowest[0] == 'act' and slowest[1]/total_time > 0.2:
+            logger.info(f"     agent.act() is taking {slowest[1]/total_time*100:.1f}% of time")
+            logger.info(f"    Network size: {rl_config.hidden_dims}")
+            logger.info(f"    Device: {self.rl_agent.device}")
+            logger.info(f"    TRY: Use GPU if available")
+            logger.info(f"    TRY: Reduce network size to [128, 128]")
+        
+        else:
+            logger.info(f"    Training is well-balanced")
+        
+        logger.info("")
+        
+        # Store results
         self.training_results['rl_results'] = {
-            'total_episodes': len(episode_results),
-            'training_duration_minutes': total_duration / 60,
-            'best_episode': best_episode,
+            'total_episodes': n_episodes,
+            'training_time_seconds': total_time,
             'best_reward': float(best_reward),
-            'final_epsilon': episode_results[-1]['epsilon'],
-            'final_10_avg_reward': float(np.mean([e['total_reward'] for e in final_10])),
-            'final_10_avg_portfolio': float(np.mean([e['portfolio_value'] for e in final_10])),
-            'final_10_avg_sharpe': float(np.mean([e['sharpe_ratio'] for e in final_10])),
-            'final_10_avg_win_rate': float(np.mean([e['win_rate'] for e in final_10])),
-            'avg_episode_time_seconds': avg_episode_time,
-            'episode_summary': {
-                'first_10_avg': float(np.mean([e['total_reward'] for e in episode_results[:10]])),
-                'middle_10_avg': float(np.mean([e['total_reward'] for e in episode_results[len(episode_results)//2-5:len(episode_results)//2+5]])),
-                'last_10_avg': float(np.mean([e['total_reward'] for e in episode_results[-10:]])),
-                'overall_avg': float(np.mean([e['total_reward'] for e in episode_results])),
-                'overall_std': float(np.std([e['total_reward'] for e in episode_results]))
+            'final_reward': episode_results[-1]['reward'],
+            'timing_breakdown': {
+                'env_reset_seconds': cumulative_times['reset'],
+                'agent_act_seconds': cumulative_times['act'],
+                'env_step_seconds': cumulative_times['step'],
+                'agent_remember_seconds': cumulative_times['remember'],
+                'agent_replay_seconds': cumulative_times['replay']
             }
         }
         
-        # Add validation results if available
-        if ohlcv_val is not None:
-            self.training_results['rl_results']['validation'] = {
-                'mean_reward': float(val_stats['mean_reward']),
-                'mean_portfolio_value': float(val_stats['mean_portfolio_value']),
-                'mean_sharpe_ratio': float(val_stats.get('mean_sharpe_ratio', 0)),
-                'mean_win_rate': float(val_stats.get('mean_win_rate', 0))
-            }
-        
-        logger.info("\n" + "="*80)
+        return episode_results
     
     def _save_models(self):
         """Save trained models to disk"""

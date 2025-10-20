@@ -1,77 +1,89 @@
 {
-  "start_time": "2025-10-16T14:56:31.974512",
+  "start_time": "2025-10-20T16:48:53.284031",
   "stages": {
     "Data Loading": {
-      "start_time": 1760651792.6593425,
+      "start_time": 1761004133.9856913,
       "total_items": 15,
       "completed_items": 15,
       "status": "completed",
       "progress": 100.0,
-      "elapsed_time": 2.862006425857544,
-      "end_time": 1760651795.9206443,
-      "total_time": 3.2613017559051514,
+      "elapsed_time": 2.817575693130493,
+      "end_time": 1761004137.2235496,
+      "total_time": 3.237858295440674,
       "final_metrics": {
         "datasets_loaded": 15,
-        "time_seconds": 3.261300563812256
+        "time_seconds": 3.23785662651062
       }
     },
     "Feature Engineering": {
-      "start_time": 1760651795.9212484,
+      "start_time": 1761004137.2241695,
       "total_items": 5,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1760651796.0475671,
-      "total_time": 0.12631869316101074,
+      "end_time": 1761004137.3274643,
+      "total_time": 0.10329484939575195,
       "final_metrics": {
         "feature_sets": 5,
-        "time_seconds": 0.12631988525390625
+        "time_seconds": 0.10329461097717285
       }
     },
     "Data Splitting": {
-      "start_time": 1760651796.0481546,
+      "start_time": 1761004137.3280177,
       "total_items": 5,
       "completed_items": 5,
       "status": "completed",
       "progress": 100.0,
-      "elapsed_time": 0.13502049446105957,
-      "end_time": 1760651796.183805,
-      "total_time": 0.1356503963470459,
+      "elapsed_time": 0.12192225456237793,
+      "end_time": 1761004137.450638,
+      "total_time": 0.1226203441619873,
       "final_metrics": {
-        "time_seconds": 0.1356525421142578
+        "time_seconds": 0.12262105941772461
       }
     },
     "ML Training": {
-      "start_time": 1760651796.184284,
+      "start_time": 1761004137.4510396,
       "total_items": 100,
       "completed_items": 100,
       "status": "completed",
       "progress": 100.0,
-      "elapsed_time": 170.1605761051178,
+      "elapsed_time": 167.78534173965454,
       "metrics": {
         "accuracy": 0.6834525149703764,
         "f1_score": 0.6739366300850472
       },
-      "end_time": 1760651966.345706,
-      "total_time": 170.16142201423645,
+      "end_time": 1761004305.2371562,
+      "total_time": 167.78611660003662,
       "final_metrics": {
-        "time_seconds": 170.16142106056213,
+        "time_seconds": 167.7861156463623,
         "accuracy": 0.6834525149703764
       }
     },
     "RL Training": {
-      "start_time": 1760651966.3463085,
-      "total_items": 100,
+      "start_time": 1761004305.2377028,
+      "total_items": 80,
+      "completed_items": 0,
+      "status": "completed",
+      "end_time": 1761004544.637231,
+      "total_time": 239.3995282649994,
+      "final_metrics": {
+        "time_seconds": 239.39952492713928,
+        "episodes": 80
+      }
+    },
+    "Saving Models": {
+      "start_time": 1761004544.6379213,
+      "total_items": 2,
       "completed_items": 2,
-      "status": "running",
-      "progress": 2.0,
-      "elapsed_time": 565.7383501529694,
-      "metrics": {
-        "current_reward": -146.12983959234296,
-        "epsilon": 0.01,
-        "avg_reward_last_10": NaN
+      "status": "completed",
+      "progress": 100.0,
+      "elapsed_time": 0.08296966552734375,
+      "end_time": 1761004544.722546,
+      "total_time": 0.0846247673034668,
+      "final_metrics": {
+        "time_seconds": 0.0846254825592041
       }
     }
   },
-  "current_stage": "RL Training",
+  "current_stage": "Saving Models",
   "overall_progress": 0.0
 }

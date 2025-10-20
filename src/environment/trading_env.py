@@ -76,7 +76,10 @@ class TradingEnvironment:
                  stop_loss: Optional[float] = None,
                  take_profit: Optional[float] = None,
                  features_df: Optional[pd.DataFrame] = None,
-                 precompute_observations: bool = True):  # ← NEW PARAMETER
+                 selected_features: Optional[List[str]] = None,
+                 precompute_observations: bool = True,
+                 asset: str = 'BTC/USD',
+                 timeframe: str = '1h'):  # ← NEW PARAMETER
         """
         Initialize trading environment
         
@@ -105,8 +108,19 @@ class TradingEnvironment:
         # Market data
         self.df = df.copy()
         self.features_df = features_df
+        self.selected_features = selected_features
         self.prices = df[['open', 'high', 'low', 'close']].values
         self.volumes = df['volume'].values
+
+        if self.features_df is not None and self.selected_features is not None:
+            # Check which selected features exist in features_df
+            available_features = [f for f in self.selected_features if f in self.features_df.columns]
+            if available_features:
+                self.features_df = self.features_df[available_features]
+                logger.info(f"  Filtered features: {len(available_features)}/{len(self.selected_features)} available")
+            else:
+                logger.warning("  No selected features found in features_df, using all features")
+    
         
         # Environment parameters
         self.initial_balance = initial_balance
@@ -150,6 +164,16 @@ class TradingEnvironment:
         # Action and observation spaces (Gym-like)
         self.action_space_n = 3  # HOLD, BUY, SELL
         self.observation_space_shape = self._get_observation_shape()
+
+        self.max_position_hold_steps = 200  # Close after 200 steps
+        self.position_opened_step = 0
+
+        self.asset = asset
+        self.timeframe = timeframe
+        
+        # Create encodings for the observation
+        self.asset_encoding = self._encode_asset(asset)
+        self.timeframe_encoding = self._encode_timeframe(timeframe)
         
         # ⚡ PRE-COMPUTE ALL OBSERVATIONS (NEW!)
         self.precomputed_obs = None
@@ -193,8 +217,18 @@ class TradingEnvironment:
             # Temporarily set current_step
             self.current_step = i
             
-            # Calculate and store observation
-            self.precomputed_obs[i] = self._calculate_observation()
+            # ✅ FIX: Get base observation + add encodings
+            base_obs = self._calculate_observation()  # 70 dims
+            
+            # Add asset and timeframe encodings (same for all steps in this episode)
+            full_obs = np.concatenate([
+                base_obs,                    # 70 dimensions
+                self.asset_encoding,         # 5 dimensions
+                self.timeframe_encoding      # 6 dimensions
+            ])
+            
+            # Store the complete observation (81 dims)
+            self.precomputed_obs[i] = full_obs
         
         # Restore original state
         self.current_step = original_step
@@ -229,20 +263,118 @@ class TradingEnvironment:
             raise ValueError(f"DataFrame has {len(df)} rows, less than window_size {self.window_size}")
     
     def _get_observation_shape(self) -> Tuple[int]:
-        """Get shape of observation space"""
-        # Market features + account features + position features
-        market_features = self.window_size * 5  # OHLCV
+        """
+        Get observation space shape
         
-        if self.features_df is not None:
-            technical_features = self.features_df.shape[1]
-        else:
-            technical_features = 0
+        ✅ MODIFIED: Accounts for new encodings
+        """
+        # Original observation dimensions
+        market_features = 50  # From features
+        technical_features = 10  # Price, volume, etc.
+        account_features = 5  # Balance, equity, etc.
+        position_features = 5  # Position, entry_price, etc.
         
-        account_features = 10  # balance, equity, pnl, etc.
-        position_features = 5  # position, entry_price, size, etc.
+        # ✅ NEW: Asset and timeframe encodings
+        asset_encoding_dim = 5
+        timeframe_encoding_dim = 6
         
-        total_features = market_features + technical_features + account_features + position_features
+        total_features = (market_features + technical_features + 
+                        account_features + position_features +
+                        asset_encoding_dim + timeframe_encoding_dim)
+        
         return (total_features,)
+    
+    def _encode_asset(self, asset: str) -> np.ndarray:
+        """
+        Encode asset as one-hot vector
+        
+        Args:
+            asset: Asset name (e.g., 'BTC/USD')
+            
+        Returns:
+            One-hot encoded vector [5 dimensions]
+        """
+        # Define asset mappings
+        asset_map = {
+            'BTC/USD': 0,
+            'ETH/USD': 1,
+            'SOL/USD': 2,
+            'ADA/USD': 3,
+            'DOT/USD': 4
+        }
+        
+        # Create one-hot vector [5 dimensions]
+        encoding = np.zeros(5, dtype=np.float32)
+        
+        if asset in asset_map:
+            encoding[asset_map[asset]] = 1.0
+        else:
+            # Unknown asset - use zeros (neutral)
+            pass
+        
+        return encoding
+
+
+    def _encode_timeframe(self, timeframe: str) -> np.ndarray:
+        """
+        Encode timeframe as one-hot vector
+        
+        Args:
+            timeframe: Timeframe (e.g., '1h', '4h', '1d')
+            
+        Returns:
+            One-hot encoded vector [3-5 dimensions depending on timeframes]
+        """
+        # Define timeframe mappings
+        timeframe_map = {
+            '1m': 0,
+            '5m': 1,
+            '15m': 2,
+            '1h': 3,
+            '4h': 4,
+            '1d': 5
+        }
+        
+        # Create one-hot vector [6 dimensions to cover all possible timeframes]
+        encoding = np.zeros(6, dtype=np.float32)
+        
+        if timeframe in timeframe_map:
+            encoding[timeframe_map[timeframe]] = 1.0
+        else:
+            # Unknown timeframe - use zeros
+            pass
+        
+        return encoding
+    
+    def _add_timeframe_context_features(self) -> np.ndarray:
+        """
+        Add features that give context about the timeframe
+        
+        Returns:
+            Array of contextual features [4 dimensions]
+        """
+        # Get timeframe in minutes
+        timeframe_map = {
+            '1m': 1, '5m': 5, '15m': 15,
+            '1h': 60, '4h': 240, '1d': 1440
+        }
+        minutes = timeframe_map.get(self.timeframe, 60)
+        
+        # Feature 1: Timeframe scale (log normalized)
+        tf_scale = np.log10(minutes) / np.log10(1440)
+        
+        # Feature 2: Intraday vs Daily (binary)
+        is_intraday = 1.0 if minutes < 1440 else 0.0
+        
+        # Feature 3: Fast vs Slow (based on update frequency)
+        is_fast = 1.0 if minutes <= 60 else 0.0
+        
+        # Feature 4: Candles per day (helps agent understand time scale)
+        candles_per_day = 1440 / minutes
+        candles_per_day_normalized = candles_per_day / 1440  # Normalize
+        
+        return np.array([tf_scale, is_intraday, is_fast, candles_per_day_normalized], 
+                    dtype=np.float32)
     
     def reset(self, seed: Optional[int] = None) -> np.ndarray:
         """
@@ -288,15 +420,7 @@ class TradingEnvironment:
         """
         Execute one step in the environment
         
-        Args:
-            action: Trading action (0=HOLD, 1=BUY, 2=SELL)
-            
-        Returns:
-            observation: Current state
-            reward: Step reward
-            done: Episode finished
-            truncated: Episode truncated
-            info: Additional information
+        UPDATED: Now validates both position size and balance
         """
         # Store previous portfolio value
         prev_portfolio_value = self._get_portfolio_value()
@@ -304,8 +428,20 @@ class TradingEnvironment:
         # Execute action
         self._execute_action(action)
         
+        # ← ADD THIS: Validate balance after action
+        if not self._validate_balance():
+            logger.warning("❌ Balance validation failed, ending episode")
+            # Return current state even though episode is done
+            observation = self._get_observation()
+            reward = self._calculate_reward(prev_portfolio_value)
+            info = self._get_info()
+            return observation, reward, True, True, info
+        
         # Update market step
         self.current_step += 1
+
+        # Check if position held too long
+        self._check_position_timeout()
         
         # Check if episode is done
         self._check_done()
@@ -325,79 +461,128 @@ class TradingEnvironment:
         return observation, reward, self.done, self.truncated, info
     
     def _get_observation(self) -> np.ndarray:
-        """
-        Get current observation
+        """Get observation with encodings"""
         
-        ⚡ OPTIMIZED: Uses pre-computed observations if available!
-        """
         if self.precompute_observations and self.precomputed_obs is not None:
-            # ⚡ INSTANT - just array lookup! (~0.000001 seconds)
-            return self.precomputed_obs[self.current_step].copy()
+            # Pre-computed observations already include encodings!
+            obs = self.precomputed_obs[self.current_step].copy()
         else:
-            # 🐌 SLOW - calculates every time (~0.5-2 seconds)
-            return self._calculate_observation()
+            # Calculate on-the-fly and add encodings
+            base_obs = self._calculate_observation()
+            obs = np.concatenate([
+                base_obs,
+                self.asset_encoding,
+                self.timeframe_encoding
+            ])
+        
+        return obs
     
     def _calculate_observation(self) -> np.ndarray:
         """
         Calculate observation from scratch
         
-        This is the ORIGINAL (slow) method that we now avoid
-        by pre-computing!
+        This is the ORIGINAL (slow) method that we now avoid by pre-computing!
+        
+        Observation structure (matches _get_observation_shape):
+        - Market features: 50 (from features_df)
+        - Technical features: 10 (recent OHLCV bars - simplified)
+        - Account features: 5 (balance, equity, etc.)
+        - Position features: 5 (position, entry_price, etc.)
+        Total BASE observation: 70 dimensions
+        
+        NOTE: Asset encoding (5) and timeframe encoding (6) are added in _get_observation()!
         """
         obs = []
         
-        # Price history (normalized)
-        if self.current_step >= self.window_size:
-            price_history = self.prices[self.current_step - self.window_size:self.current_step]
-            volume_history = self.volumes[self.current_step - self.window_size:self.current_step]
-            
-            # Normalize prices
-            current_price = self._get_current_price()
-            normalized_prices = price_history / current_price
-            obs.extend(normalized_prices.flatten())
-            
-            # Normalize volumes
-            mean_volume = np.mean(volume_history)
-            if mean_volume > 0:
-                normalized_volumes = volume_history / mean_volume
-            else:
-                normalized_volumes = volume_history
-            obs.extend(normalized_volumes)
-        
-        # Technical indicators (if available)
+        # ========================================================================
+        # PART 1: Market features (50 dimensions from features_df)
+        # ========================================================================
         if self.features_df is not None and self.current_step < len(self.features_df):
-            technical_features = self.features_df.iloc[self.current_step].values
+            # Get the 50 selected features for this step
+            market_features = self.features_df.iloc[self.current_step].values
+            
+            # ✅ CRITICAL: Validate we have exactly 50 features
+            if len(market_features) != 50:
+                # If we have more than 50, something went wrong with filtering
+                # Take only first 50 as emergency fallback
+                market_features = market_features[:50]
+                
             # Handle NaN values
-            technical_features = np.nan_to_num(technical_features, nan=0.0, posinf=0.0, neginf=0.0)
-            obs.extend(technical_features)
+            market_features = np.nan_to_num(market_features, nan=0.0, posinf=0.0, neginf=0.0)
+            obs.extend(market_features)
+        else:
+            # If no features available, use zeros
+            obs.extend(np.zeros(50))
         
-        # Account state (normalized)
+        # ========================================================================
+        # PART 2: Technical features (10 dimensions - recent OHLCV)
+        # ========================================================================
+        # Instead of full price history, just use recent normalized OHLCV
         current_price = self._get_current_price()
+        
+        if self.current_step > 0:
+            # Get recent bar (normalized)
+            recent_open = self.prices[self.current_step, 0] / current_price
+            recent_high = self.prices[self.current_step, 1] / current_price  
+            recent_low = self.prices[self.current_step, 2] / current_price
+            recent_close = self.prices[self.current_step, 3] / current_price
+            
+            # Get previous bar for comparison
+            prev_close = self.prices[self.current_step - 1, 3] / current_price
+            
+            # Volume features
+            current_volume = self.volumes[self.current_step]
+            if self.current_step >= 20:
+                mean_volume = np.mean(self.volumes[self.current_step - 20:self.current_step])
+            else:
+                mean_volume = np.mean(self.volumes[:self.current_step + 1])
+            
+            volume_ratio = current_volume / mean_volume if mean_volume > 0 else 1.0
+            
+            # Technical features (10 dimensions)
+            obs.extend([
+                recent_open,      # 1. Open price (normalized)
+                recent_high,      # 2. High price (normalized)
+                recent_low,       # 3. Low price (normalized)
+                recent_close,     # 4. Close price (normalized)
+                prev_close,       # 5. Previous close (normalized)
+                (recent_close - recent_open) / (recent_open + 1e-10),  # 6. Return
+                (recent_high - recent_low) / (recent_close + 1e-10),   # 7. Range
+                volume_ratio,     # 8. Volume ratio
+                min(volume_ratio, 5.0),  # 9. Volume ratio clipped
+                float(recent_close > prev_close)  # 10. Price direction (1=up, 0=down)
+            ])
+        else:
+            # First step - use zeros
+            obs.extend(np.zeros(10))
+        
+        # ========================================================================
+        # PART 3: Account features (5 dimensions)
+        # ========================================================================
         portfolio_value = self._get_portfolio_value()
         
         obs.extend([
-            self.balance / self.initial_balance,
-            portfolio_value / self.initial_balance,
-            self.realized_pnl / self.initial_balance,
-            self.unrealized_pnl / self.initial_balance,
-            self.total_fees_paid / self.initial_balance,
-            len(self.trades) / 100,  # Normalized trade count
-            self._get_win_rate(),
-            self.current_drawdown,
-            self.max_drawdown,
-            self._get_sharpe_ratio()
+            self.balance / self.initial_balance,              # 1. Cash balance (normalized)
+            portfolio_value / self.initial_balance,          # 2. Total portfolio value (normalized)
+            self.realized_pnl / self.initial_balance,        # 3. Realized PnL (normalized)
+            self.unrealized_pnl / self.initial_balance,      # 4. Unrealized PnL (normalized)
+            self.total_fees_paid / self.initial_balance      # 5. Total fees (normalized)
         ])
         
-        # Position information
+        # ========================================================================
+        # PART 4: Position features (5 dimensions)
+        # ========================================================================
         obs.extend([
-            float(self.position),
-            self.entry_price / current_price if self.entry_price > 0 else 0,
-            self.position_size,
-            self.unrealized_pnl / self.initial_balance if self.position != Positions.FLAT else 0,
-            self._get_position_duration() / 100  # Normalized duration
+            float(self.position),                                              # 1. Position type (0=flat, 1=long, -1=short)
+            self.entry_price / current_price if self.entry_price > 0 else 0,  # 2. Entry price (normalized)
+            self.position_size / self.initial_balance if self.position_size > 0 else 0,  # 3. Position size (normalized)
+            self.unrealized_pnl / self.initial_balance if self.position != Positions.FLAT else 0,  # 4. Unrealized PnL (normalized)
+            self._get_position_duration() / 100                               # 5. Position duration (normalized)
         ])
         
-        # Convert to numpy array
+        # ========================================================================
+        # Convert to numpy array and clean
+        # ========================================================================
         observation = np.array(obs, dtype=np.float32)
         
         # Replace any remaining NaN/Inf
@@ -406,10 +591,17 @@ class TradingEnvironment:
         # Clip extreme values
         observation = np.clip(observation, -10, 10)
         
+        # ✅ FINAL VALIDATION: Should be exactly 70 dimensions (50+10+5+5)
+        assert len(observation) == 70, f"Expected 70 dimensions but got {len(observation)}!"
+        
         return observation
     
     def _execute_action(self, action: int) -> None:
-        """Execute trading action"""
+        """
+        Execute trading action with validation
+        
+        UPDATED: Now validates position sizes after each trade
+        """
         current_price = self._get_current_price()
         
         if action == Actions.BUY:
@@ -418,93 +610,292 @@ class TradingEnvironment:
             self._execute_sell(current_price)
         # HOLD action doesn't change position
         
+        # ← ADD THIS VALIDATION CHECK
+        if not self._validate_position_size():
+            logger.warning(" Position validation failed, ending episode")
+            self.done = True
+            self.truncated = True
+            return
+        
         # Check stop loss and take profit
         if self.position != Positions.FLAT:
             self._check_exit_conditions(current_price)
     
     def _execute_buy(self, price: float) -> None:
-        """Execute buy order"""
-        if self.position == Positions.FLAT:
-            # Open long position
-            position_value = self._calculate_position_size(price)
-            
-            # Apply slippage and fees
-            execution_price = price * (1 + self.slippage)
-            fees = position_value * self.fee_rate
-            
-            # Check if we have enough balance
-            if self.balance >= fees:
-                self.position_size = (position_value - fees) / execution_price
-                self.entry_price = execution_price
-                self.position = Positions.LONG
-                self.balance -= fees
-                self.total_fees_paid += fees
-                
-                # Record trade
-                self._record_trade('BUY', execution_price, self.position_size, fees)
-                
-        elif self.position == Positions.SHORT and self.enable_short:
-            # Close short position (buy to cover)
+        """
+        Execute buy order - FIXED VERSION
+        
+        Key fixes:
+        1. Check if we're already in a position (shouldn't buy if already long)
+        2. Correct balance deduction
+        3. Proper fee calculation
+        """
+        
+        # ✅ FIX #1: Can only buy if FLAT or closing SHORT
+        if self.position == Positions.LONG:
+            # Already long, can't buy more (no pyramiding)
+            logger.warning(f"Step {self.current_step}: Attempted to BUY while already LONG - ignoring")
+            return
+        
+        if self.position == Positions.SHORT and self.enable_short:
+            # Close short position first
             self._close_position(price, 'BUY')
+            return
+        
+        # Now we're FLAT and can open a LONG position
+        
+        # Calculate capital to use (95% for safety)
+        available_capital = self.balance * 0.95
+        
+        # ✅ FIX #2: Check if we have enough capital
+        if available_capital < 10:  # Minimum $10 to trade
+            logger.warning(f"Step {self.current_step}: Insufficient capital ${available_capital:.2f} - skipping trade")
+            return
+        
+        # Apply slippage to price
+        execution_price = price * (1 + self.slippage)
+        
+        # Calculate gross position (before fees)
+        gross_position_size = available_capital / execution_price
+        
+        # Calculate fees IN DOLLARS
+        fee_in_dollars = available_capital * self.fee_rate
+        
+        # Calculate how many coins are lost to fees
+        coins_lost_to_fees = fee_in_dollars / execution_price
+        
+        # Net position after fees
+        net_position_size = gross_position_size - coins_lost_to_fees
+        
+        # ✅ FIX #3: Validate position BEFORE setting it
+        position_value = net_position_size * execution_price
+        if position_value > self.initial_balance * 2:
+            logger.error(f"Step {self.current_step}: Calculated position ${position_value:.2f} exceeds 2x initial balance!")
+            logger.error(f"  Available capital: ${available_capital:.2f}")
+            logger.error(f"  Execution price: ${execution_price:.4f}")
+            logger.error(f"  Would get: {net_position_size:.2f} coins")
+            return  # Don't execute this trade
+        
+        # ✅ FIX #4: Deduct FULL amount from balance (capital + fees)
+        self.balance -= available_capital
+        
+        # Set position
+        self.position_size = net_position_size
+        self.entry_price = execution_price
+        self.position = Positions.LONG
+        self.total_fees_paid += fee_in_dollars
+        self.position_opened_step = self.current_step
+        
+        # Record trade
+        self._record_trade('BUY', execution_price, self.position_size, fee_in_dollars)
+        
+        # ✅ FIX #5: Add debug logging to track position accumulation
+        logger.debug(f"BUY executed at step {self.current_step}:")
+        logger.debug(f"  Capital used: ${available_capital:.2f}")
+        logger.debug(f"  Price: ${execution_price:.4f}")
+        logger.debug(f"  Position size: {self.position_size:.2f} coins")
+        logger.debug(f"  Position value: ${position_value:.2f}")
+        logger.debug(f"  Remaining balance: ${self.balance:.2f}")
+
     
     def _execute_sell(self, price: float) -> None:
-        """Execute sell order"""
+        """
+        Execute sell order - FIXED VERSION
+        
+        Key fixes:
+        1. Check if we're in a position to sell
+        2. Correct proceeds calculation
+        """
+        
+        # ✅ FIX #1: Can only sell if LONG or opening SHORT
+        if self.position == Positions.FLAT and not self.enable_short:
+            # Can't sell when flat (unless shorting enabled)
+            logger.warning(f"Step {self.current_step}: Attempted to SELL while FLAT - ignoring")
+            return
+        
         if self.position == Positions.LONG:
             # Close long position
             self._close_position(price, 'SELL')
-            
-        elif self.position == Positions.FLAT and self.enable_short:
+            return
+        
+        if self.position == Positions.FLAT and self.enable_short:
             # Open short position
-            position_value = self._calculate_position_size(price)
+            available_capital = self.balance * 0.95
             
-            # Apply slippage and fees
+            if available_capital < 10:
+                logger.warning(f"Step {self.current_step}: Insufficient capital for SHORT - skipping")
+                return
+            
             execution_price = price * (1 - self.slippage)
-            fees = position_value * self.fee_rate
+            fee_in_dollars = available_capital * self.fee_rate
+            coins_lost_to_fees = fee_in_dollars / execution_price
+            gross_position_size = available_capital / execution_price
+            net_position_size = gross_position_size - coins_lost_to_fees
             
-            if self.balance >= fees:
-                self.position_size = position_value / execution_price
-                self.entry_price = execution_price
-                self.position = Positions.SHORT
-                self.balance -= fees
-                self.total_fees_paid += fees
-                
-                # Record trade
-                self._record_trade('SELL', execution_price, self.position_size, fees)
+            # Validate
+            position_value = net_position_size * execution_price
+            if position_value > self.initial_balance * 2:
+                logger.error(f"Step {self.current_step}: SHORT position too large - skipping")
+                return
+            
+            # Deduct capital
+            self.balance -= available_capital
+            
+            self.position_size = net_position_size
+            self.entry_price = execution_price
+            self.position = Positions.SHORT
+            self.total_fees_paid += fee_in_dollars
+            self.position_opened_step = self.current_step
+            
+            self._record_trade('SELL', execution_price, self.position_size, fee_in_dollars)
+
+    def _validate_position_size(self) -> bool:
+        """
+        Enhanced validation with detailed logging
+        """
+        if self.position == Positions.FLAT:
+            return True
+        
+        current_price = self._get_current_price()
+        position_value = self.position_size * current_price
+        
+        # ✅ TIGHTER LIMIT: 2x instead of 10x
+        max_reasonable_position = self.initial_balance * 2
+        
+        if position_value > max_reasonable_position:
+            logger.error("=" * 80)
+            logger.error(" UNREALISTIC POSITION SIZE DETECTED!")
+            logger.error("=" * 80)
+            logger.error(f"Position value:    ${position_value:,.2f}")
+            logger.error(f"Max reasonable:    ${max_reasonable_position:,.2f}")
+            logger.error(f"Position size:     {self.position_size:.6f} coins")
+            logger.error(f"Current price:     ${current_price:.2f}")
+            logger.error(f"Entry price:       ${self.entry_price:.2f}")
+            logger.error(f"Current balance:   ${self.balance:,.2f}")
+            logger.error(f"Current step:      {self.current_step}")
+            
+            # ✅ NEW: Show how we got here
+            recent_trades = self.trades[-5:] if len(self.trades) >= 5 else self.trades
+            logger.error("\nRecent trades:")
+            for trade in recent_trades:
+                logger.error(f"  Step {trade['step']}: {trade['action']} "
+                            f"{trade['size']:.2f} @ ${trade['price']:.4f}")
+            
+            logger.error("=" * 80)
+            logger.error("This indicates a bug in position sizing or fee calculation!")
+            logger.error("Forcing episode to end...")
+            logger.error("=" * 80)
+            
+            # Force close position and end episode
+            if self.position == Positions.LONG:
+                self._close_position(current_price, 'SELL')
+            elif self.position == Positions.SHORT:
+                self._close_position(current_price, 'BUY')
+            
+            self.done = True
+            self.truncated = True
+            return False
+        
+        return True
+    
+    def _validate_balance(self) -> bool:
+        """
+        Validate that balance is realistic
+        
+        Returns:
+            True if balance is valid, False if unrealistic
+        """
+        # Balance should never be negative (that's a bug)
+        if self.balance < 0:
+            logger.error("=" * 80)
+            logger.error(" NEGATIVE BALANCE DETECTED!")
+            logger.error("=" * 80)
+            logger.error(f"Balance: ${self.balance:,.2f}")
+            logger.error(f"This should NEVER happen - indicates a bug!")
+            logger.error("=" * 80)
+            self.done = True
+            self.truncated = True
+            return False
+        
+        # Balance should never exceed 1000x initial (that's unrealistic growth)
+        if self.balance > self.initial_balance * 1000:
+            logger.error("=" * 80)
+            logger.error(" UNREALISTIC BALANCE DETECTED!")
+            logger.error("=" * 80)
+            logger.error(f"Balance: ${self.balance:,.2f}")
+            logger.error(f"Initial: ${self.initial_balance:,.2f}")
+            logger.error(f"That's {self.balance/self.initial_balance:.0f}x growth!")
+            logger.error("=" * 80)
+            self.done = True
+            self.truncated = True
+            return False
+        
+        return True
     
     def _close_position(self, price: float, action: str) -> None:
-        """Close current position"""
+        """
+        Close current position - FIXED VERSION
+        
+        Key fixes:
+        1. Ensure we're actually in a position
+        2. Correct proceeds calculation
+        3. Reset position_size to ZERO
+        """
+        
+        # ✅ FIX #1: Verify we're in a position
         if self.position == Positions.FLAT:
+            logger.warning(f"Step {self.current_step}: Attempted to close FLAT position - ignoring")
             return
         
         # Apply slippage
         if action == 'SELL':
             execution_price = price * (1 - self.slippage)
-        else:
+        else:  # BUY (covering short)
             execution_price = price * (1 + self.slippage)
+        
+        # Calculate gross position value (what we're selling)
+        gross_position_value = self.position_size * execution_price
+        
+        # Calculate fees
+        fees = gross_position_value * self.fee_rate
+        
+        # Net proceeds after fees
+        net_proceeds = gross_position_value - fees
         
         # Calculate PnL
         if self.position == Positions.LONG:
-            pnl = (execution_price - self.entry_price) * self.position_size
+            gross_pnl = (execution_price - self.entry_price) * self.position_size
         else:  # SHORT
-            pnl = (self.entry_price - execution_price) * self.position_size
+            gross_pnl = (self.entry_price - execution_price) * self.position_size
         
-        # Calculate fees
-        position_value = self.position_size * execution_price
-        fees = position_value * self.fee_rate
+        net_pnl = gross_pnl - fees
         
-        # Update balance
-        self.balance += position_value - fees
-        self.realized_pnl += pnl - fees
+        # ✅ FIX #2: Add proceeds back to balance
+        self.balance += net_proceeds
+        
+        # Track PnL
+        self.realized_pnl += net_pnl
         self.total_fees_paid += fees
         
         # Record trade
-        self._record_trade(action, execution_price, self.position_size, fees, pnl)
+        self._record_trade(action, execution_price, self.position_size, fees, gross_pnl)
         
-        # Reset position
+        # ✅ FIX #3: CRITICAL - Reset position to ZERO
+        old_position_size = self.position_size
         self.position = Positions.FLAT
         self.entry_price = 0
-        self.position_size = 0
+        self.position_size = 0  # ← MUST reset to zero!
         self.unrealized_pnl = 0
+        
+        # Debug logging
+        logger.debug(f"Position CLOSED at step {self.current_step}:")
+        logger.debug(f"  Sold {old_position_size:.2f} coins @ ${execution_price:.4f}")
+        logger.debug(f"  Gross proceeds: ${gross_position_value:.2f}")
+        logger.debug(f"  Fees: ${fees:.2f}")
+        logger.debug(f"  Net proceeds: ${net_proceeds:.2f}")
+        logger.debug(f"  PnL: ${net_pnl:.2f}")
+        logger.debug(f"  New balance: ${self.balance:.2f}")
+        logger.debug(f"  Position size now: {self.position_size:.2f} (should be 0)")
     
     def _check_exit_conditions(self, current_price: float) -> None:
         """Check stop loss and take profit conditions"""
@@ -530,41 +921,41 @@ class TradingEnvironment:
                 self._close_position(current_price, 'SELL')
             else:
                 self._close_position(current_price, 'BUY')
-    
-    def _calculate_position_size(self, price: float) -> float:
-        """Calculate position size based on strategy"""
-        if self.position_sizing == 'fixed':
-            # Use fixed percentage of balance
-            return self.balance * 0.95  # Use 95% of balance
+
+    def _check_position_timeout(self) -> None:
+        """
+        Auto-close positions held too long
         
-        elif self.position_sizing == 'dynamic':
-            # Kelly Criterion or risk-based sizing
-            # Calculate based on recent volatility
-            recent_returns = pd.Series(self.prices[-20:, 3]).pct_change().dropna()
-            volatility = recent_returns.std()
+        Call this in step() method before calculating reward
+        """
+        if self.position == Positions.FLAT:
+            return
+        
+        hold_duration = self.current_step - self.position_opened_step
+        
+        if hold_duration >= self.max_position_hold_steps:
+            # Position held too long - force close
+            current_price = self._get_current_price()
             
-            if volatility > 0:
-                # Adjust position size based on volatility
-                position_size = (self.balance * self.risk_per_trade) / (volatility * price)
-                return min(position_size * price, self.balance * 0.95)
+            if self.position == Positions.LONG:
+                self._close_position(current_price, 'SELL')
             else:
-                return self.balance * 0.95
-        
-        else:
-            return self.balance * 0.95
+                self._close_position(current_price, 'BUY')
+    
     
     def _get_current_price(self) -> float:
         """Get current market price"""
         return self.prices[self.current_step, 3]  # Close price
     
     def _get_portfolio_value(self) -> float:
-        """Calculate total portfolio value"""
-        current_price = self._get_current_price()
-        
+        """Calculate total portfolio value - FIXED VERSION"""
         if self.position == Positions.FLAT:
+            # No open position, just return balance
             return self.balance
         
-        # Calculate position value
+        current_price = self._get_current_price()
+        
+        # Calculate current position value
         position_value = self.position_size * current_price
         
         # Calculate unrealized PnL
@@ -573,69 +964,91 @@ class TradingEnvironment:
         else:  # SHORT
             self.unrealized_pnl = (self.entry_price - current_price) * self.position_size
         
+        # Portfolio = cash + position value
+        # Since we already deducted the purchase cost, position_value represents current worth
         return self.balance + position_value
     
     def _calculate_reward(self, prev_portfolio_value: float) -> float:
         """
-        Calculate step reward
+        Calculate step reward - SIMPLIFIED & FIXED
         
-        Multiple reward formulations available:
-        1. Simple returns
-        2. Risk-adjusted returns (Sharpe)
-        3. Profit factor
-        4. Custom scoring
+        Reward = actual dollar change in portfolio, scaled appropriately
         """
         current_portfolio_value = self._get_portfolio_value()
         
-        # Simple return-based reward
-        returns = (current_portfolio_value - prev_portfolio_value) / prev_portfolio_value
+        # Calculate raw dollar change
+        portfolio_change = current_portfolio_value - prev_portfolio_value
         
-        # Add portfolio value tracking
+        # Scale by initial balance so rewards are in reasonable range
+        # A $100 gain on $10,000 balance = reward of 1.0
+        reward = (portfolio_change / self.initial_balance) * 100
+        
+        # Track portfolio history for metrics
         self.portfolio_values.append(current_portfolio_value)
         
-        # Calculate Sharpe ratio component if enough history
-        if len(self.portfolio_values) > 20:
-            recent_returns = pd.Series(self.portfolio_values[-20:]).pct_change().dropna()
-            if len(recent_returns) > 0 and recent_returns.std() > 0:
-                sharpe_component = recent_returns.mean() / recent_returns.std()
-            else:
-                sharpe_component = 0
-        else:
-            sharpe_component = 0
-        
-        # Penalize drawdowns
-        drawdown_penalty = 0
+        # Update drawdown tracking
         if current_portfolio_value > self.peak_portfolio_value:
             self.peak_portfolio_value = current_portfolio_value
+            self.current_drawdown = 0
         else:
-            self.current_drawdown = (self.peak_portfolio_value - current_portfolio_value) / self.peak_portfolio_value
-            drawdown_penalty = -self.current_drawdown * 0.5
-            
+            self.current_drawdown = ((self.peak_portfolio_value - current_portfolio_value) / 
+                                    self.peak_portfolio_value)
             if self.current_drawdown > self.max_drawdown:
                 self.max_drawdown = self.current_drawdown
         
-        # Combine reward components
-        reward = returns + sharpe_component * 0.1 + drawdown_penalty
-        
-        # Scale reward
-        return reward * self.reward_scaling
+        return reward
     
     def _check_done(self) -> None:
-        """Check if episode should end"""
-        # End if we've processed all data
+        """
+        Check if episode should end - SMART ENDING
+        
+        Strategy:
+        1. Normal episodes run until data ends
+        2. If forced to end early (drawdown/bankruptcy), close positions
+        3. Otherwise, let agent complete natural trade cycle
+        """
+        
+        # Check if we've used all available data
         if self.current_step >= len(self.prices) - 1:
+            # Natural end - close any remaining position
+            if self.position != Positions.FLAT:
+                current_price = self._get_current_price()
+                if self.position == Positions.LONG:
+                    self._close_position(current_price, 'SELL')
+                else:
+                    self._close_position(current_price, 'BUY')
+            
             self.done = True
             self.truncated = False
             return
         
-        # End if balance is too low (bankruptcy)
-        if self.balance < self.initial_balance * 0.1:  # Lost 90% of capital
+        # Emergency stop conditions
+        portfolio_value = self._get_portfolio_value()
+        
+        # Bankruptcy check
+        if portfolio_value < self.initial_balance * 0.1:
+            # Emergency - must close position
+            if self.position != Positions.FLAT:
+                current_price = self._get_current_price()
+                if self.position == Positions.LONG:
+                    self._close_position(current_price, 'SELL')
+                else:
+                    self._close_position(current_price, 'BUY')
+            
             self.done = True
             self.truncated = True
             return
         
-        # End if drawdown is too high
-        if self.max_drawdown > 0.5:  # 50% drawdown
+        # Extreme drawdown check
+        if self.max_drawdown > 0.5:
+            # Emergency - must close position
+            if self.position != Positions.FLAT:
+                current_price = self._get_current_price()
+                if self.position == Positions.LONG:
+                    self._close_position(current_price, 'SELL')
+                else:
+                    self._close_position(current_price, 'BUY')
+            
             self.done = True
             self.truncated = True
             return

@@ -160,7 +160,7 @@ class OptimizedSystemTrainer:
             'timeframes': ['1h', '4h', '1d'],
             
             # Data settings
-            'start_date': '2020-01-01',
+            'start_date': '2021-01-01',
             'end_date': '2025-01-01',
             'train_split': 0.8,
             'validation_split': 0.1,
@@ -195,7 +195,9 @@ class OptimizedSystemTrainer:
             'walk_forward_splits': 5,
             
             # RL settings
-            'rl_episodes': 100,
+            'rl_training_mode': 'random',
+            'max_steps_per_episode': 900,
+            'rl_episodes': 80,
             'rl_hidden_dims': [256, 256, 128],
             'use_double_dqn': True,
             'use_dueling_dqn': True,
@@ -226,6 +228,10 @@ class OptimizedSystemTrainer:
         """
         Optimized complete training pipeline
         Target: 4-6 hours (vs 2 days original)
+        
+        ✅ FIXED: When train_rl=True but train_ml=False, will either:
+        1. Load existing ML model, OR
+        2. Quick train ML just for feature selection
         """
         logger.info("="*80)
         logger.info("OPTIMIZED HYBRID ML/RL SYSTEM TRAINING")
@@ -266,8 +272,34 @@ class OptimizedSystemTrainer:
             })
             logger.info(f" Data split in {time.time() - stage_start:.1f}s")
             
+            # ========================================================================
+            # ✅ CRITICAL FIX: Handle ML training for feature selection
+            # ========================================================================
+            # If RL training is requested, we NEED feature selection
+            # Either from explicit ML training OR from loading existing model
+            if train_rl and not train_ml:
+                logger.info("\n  RL training requested without ML training")
+                logger.info("   Attempting to load existing ML model for feature selection...")
+                
+                # Try to load most recent ML model
+                ml_loaded = self._try_load_ml_model()
+                
+                if not ml_loaded:
+                    logger.warning("   No existing ML model found")
+                    logger.info("   Quick-training ML for feature selection...")
+                    
+                    # Do a quick ML training just for feature selection
+                    stage_start = time.time()
+                    self.progress.start_stage('ML Feature Selection', 100)
+                    self._train_ml_predictor_gpu(train_data, val_data)
+                    self.progress.complete_stage('ML Feature Selection', {
+                        'time_seconds': time.time() - stage_start,
+                        'purpose': 'feature_selection_only'
+                    })
+                    logger.info(f" ML trained for feature selection in {time.time() - stage_start:.1f}s")
+            
             # Stage 4: GPU-accelerated ML training (30-60 min)
-            if train_ml:
+            elif train_ml:
                 stage_start = time.time()
                 self.progress.start_stage('ML Training', 100)
                 self._train_ml_predictor_gpu(train_data, val_data)
@@ -281,7 +313,13 @@ class OptimizedSystemTrainer:
             if train_rl:
                 stage_start = time.time()
                 self.progress.start_stage('RL Training', self.config['rl_episodes'])
-                self._train_rl_agent_gpu(train_data, val_data, test_data)
+
+                logger.info("\n[Pre-RL] Filtering features to ML-selected features...")
+                train_data_filtered = self._filter_features_to_selected(train_data)
+                val_data_filtered = self._filter_features_to_selected(val_data)
+                test_data_filtered = self._filter_features_to_selected(test_data)
+
+                self._train_rl_agent_gpu(train_data_filtered, val_data_filtered, test_data_filtered)
                 self.progress.complete_stage('RL Training', {
                     'time_seconds': time.time() - stage_start,
                     'episodes': self.config['rl_episodes']
@@ -317,6 +355,53 @@ class OptimizedSystemTrainer:
         except Exception as e:
             logger.error(f"Training failed: {e}", exc_info=True)
             raise
+
+    def _try_load_ml_model(self) -> bool:
+        """
+        Try to load the most recent ML model
+        
+        Returns:
+            True if model loaded successfully, False otherwise
+        """
+        try:
+            from pathlib import Path
+            import glob
+            
+            # Find most recent ML model
+            ml_models = glob.glob('models/ml/ml_predictor_*.pkl')
+            
+            if not ml_models:
+                return False
+            
+            # Get most recent
+            latest_model = max(ml_models, key=lambda x: Path(x).stat().st_mtime)
+            
+            logger.info(f"   Loading ML model: {latest_model}")
+            
+            # Load the model
+            from src.models.ml_predictor import MLPredictor
+            from src.models.labeling import LabelingConfig
+            
+            labeling_config = LabelingConfig(
+                method=self.config['labeling_method'],
+                lookforward=self.config['lookforward'],
+                pt_sl=self.config['pt_sl']
+            )
+            
+            self.ml_predictor = MLPredictor(
+                model_type=self.config['ml_model_type'],
+                labeling_config=labeling_config
+            )
+            
+            self.ml_predictor.load_model(latest_model)
+            
+            logger.info(f" Loaded ML model with {len(self.ml_predictor.selected_features)} selected features")
+            
+            return True
+            
+        except Exception as e:
+            logger.warning(f"   Failed to load ML model: {e}")
+            return False
     
     def _fetch_data_parallel(self) -> Dict[str, Dict[str, pd.DataFrame]]:
         """
@@ -540,36 +625,150 @@ class OptimizedSystemTrainer:
         except Exception as e:
             logger.error(f"ML training failed: {e}")
             raise
+
+    def _filter_features_to_selected(self, data_dict: Dict) -> Dict:
+        """
+        Filter features to only include selected features from ML training
+        
+        This is the CRITICAL step that was missing!
+        After ML training selects top 50 features, we need to filter
+        the features_df to only include those 50 features before
+        passing to the RL environment.
+        
+        Args:
+            data_dict: Dict {asset: (ohlcv_df, features_df)}
+            
+        Returns:
+            Dict with filtered features {asset: (ohlcv_df, filtered_features_df)}
+        """
+        if not hasattr(self, 'ml_predictor') or self.ml_predictor is None:
+            logger.warning(" No ML predictor found - using all features")
+            return data_dict
+        
+        if not hasattr(self.ml_predictor, 'selected_features') or not self.ml_predictor.selected_features:
+            logger.warning(" No selected features found - using all features")
+            return data_dict
+        
+        selected_features = self.ml_predictor.selected_features
+        logger.info(f"\n Filtering features to {len(selected_features)} selected features...")
+        
+        filtered_data = {}
+        
+        for asset, (ohlcv_df, features_df) in data_dict.items():
+            # Find which selected features exist in this dataframe
+            available_features = [f for f in selected_features if f in features_df.columns]
+            
+            if len(available_features) < len(selected_features):
+                missing = len(selected_features) - len(available_features)
+                logger.warning(f"  {asset}: Only {len(available_features)}/{len(selected_features)} features available ({missing} missing)")
+            
+            # Filter to only selected features
+            filtered_features = features_df[available_features].copy()
+            
+            logger.info(f"  {asset}: {features_df.shape[1]} -> {filtered_features.shape[1]} features")
+            
+            filtered_data[asset] = (ohlcv_df, filtered_features)
+        
+        return filtered_data
     
     def _train_rl_agent_gpu(self, train_data: Dict, val_data: Dict, test_data: Dict):
         """
-        Train RL agent with optimized settings
-        Now works with fixed DQN replay() method
+        Train RL agent on multiple assets and timeframes
+        
+        COMPLETE MULTI-DIMENSIONAL TRAINING:
+        - 5 assets: BTC/USD, ETH/USD, SOL/USD, ADA/USD, DOT/USD
+        - Multiple timeframes: 1h, 4h, 1d (from config)
+        - Agent learns universal patterns across all combinations
+        
+        Args:
+            train_data: Dict[asset: (ohlcv_df, features_df)]
+            val_data: Validation data (same format)
+            test_data: Test data (same format)
         """
         from src.models.dqn_agent import DQNAgent, DQNConfig
         from src.environment.trading_env import TradingEnvironment
         
-        logger.info("Training RL agent...")
+        logger.info("\n" + "="*80)
+        logger.info("MULTI-ASSET & MULTI-TIMEFRAME RL TRAINING")
+        logger.info("="*80)
         
-        # Use primary asset
-        primary_asset = self.config['assets'][0]
-        ohlcv_train, features_train = train_data[primary_asset]
+        # ========================================================================
+        # STEP 1: Load data for ALL asset-timeframe combinations
+        # ========================================================================
+        logger.info("\n[1/5] Loading multi-asset, multi-timeframe data...")
+        logger.info("   OPTIMIZATION: Using pre-calculated features from ML stage")
         
-        # Create environment
-        env = TradingEnvironment(
-            df=ohlcv_train,
+        import time
+        feature_calc_start = time.time()
+        
+        training_combinations = []
+        
+        # ✅ NEW: Use train_data directly (features already calculated by ML)
+        for asset in train_data.keys():
+            ohlcv_df, features_df = train_data[asset]
+            
+            # Get timeframes from config
+            for timeframe in self.config['timeframes']:
+                try:
+                    # ✅ NO RECALCULATION! Features already exist in features_df
+                    ohlcv_train = ohlcv_df
+                    features_train = features_df
+                    
+                    # Align indices (safety check)
+                    common_idx = ohlcv_train.index.intersection(features_train.index)
+                    ohlcv_train = ohlcv_train.loc[common_idx]
+                    features_train = features_train.loc[common_idx]
+                    
+                    if len(ohlcv_train) < 100:
+                        logger.warning(f"    {asset} {timeframe} insufficient data")
+                        continue
+                    
+                    training_combinations.append({
+                        'asset': asset,
+                        'timeframe': timeframe,
+                        'ohlcv': ohlcv_train,
+                        'features': features_train,
+                        'name': f"{asset}_{timeframe}"
+                    })
+                    
+                    logger.info(f"    {asset:10s} {timeframe:4s}: {len(ohlcv_train):,} candles "
+                               f"({features_train.shape[1]} features, pre-calculated)")
+                    
+                except Exception as e:
+                    logger.error(f"    Error loading {asset} {timeframe}: {e}")
+                    continue
+        
+        if not training_combinations:
+            logger.error(" No valid training combinations found!")
+            raise ValueError("No training data available")
+        
+        feature_calc_time = time.time() - feature_calc_start
+        
+        logger.info(f"\n  Loaded {len(training_combinations)} asset-timeframe combinations")
+        logger.info(f"  Total training data: {sum(len(c['ohlcv']) for c in training_combinations):,} candles")
+        logger.info(f"  Feature calculation time: {feature_calc_time:.2f}s (reused from ML stage!) 🚀")
+        logger.info(f"  Time saved vs recalculating: ~{len(training_combinations) * 10:.0f}s")
+        
+        # ========================================================================
+        # STEP 2: Initialize single universal agent
+        # ========================================================================
+        logger.info("\n[2/5] Initializing universal trading agent...")
+        
+        # Use first combination to get dimensions
+        first_combo = training_combinations[0]
+        temp_env = TradingEnvironment(
+            df=first_combo['ohlcv'],
             initial_balance=self.config['initial_balance'],
             fee_rate=self.config['fee_rate'],
-            slippage=self.config['slippage'],
-            features_df=features_train,
-            stop_loss=self.config['stop_loss'],
-            take_profit=self.config['take_profit']
+            features_df=first_combo['features'],
+            selected_features=self.ml_predictor.selected_features if hasattr(self.ml_predictor, 'selected_features') else None,  # ← ADD THIS
+            precompute_observations=True
         )
         
-        # Configure RL agent
-        state_dim = env.observation_space_shape[0]
-        action_dim = env.action_space_n
+        state_dim = temp_env.observation_space_shape[0]
+        action_dim = temp_env.action_space_n
         
+        # Create agent configuration
         rl_config = DQNConfig(
             state_dim=state_dim,
             action_dim=action_dim,
@@ -580,46 +779,390 @@ class OptimizedSystemTrainer:
             use_prioritized_replay=self.config.get('use_prioritized_replay', False)
         )
         
-        # Pass config as keyword argument
+        # Initialize agent (will learn from ALL combinations)
         self.rl_agent = DQNAgent(config=rl_config)
         
-        # Training loop with progress tracking
-        episode_results = []
-        
-        logger.info(f"  Training for {self.config['rl_episodes']} episodes...")
+        logger.info(f" Agent initialized")
+        logger.info(f"  State dimensions: {state_dim}")
+        logger.info(f"  Action dimensions: {action_dim}")
+        logger.info(f"  Network: {self.config['rl_hidden_dims']}")
         logger.info(f"  Device: {self.rl_agent.device}")
         
-        with tqdm(total=self.config['rl_episodes'], desc="RL Training") as pbar:
-            for episode in range(self.config['rl_episodes']):
-                stats = self.rl_agent.train_episode(env, max_steps=len(ohlcv_train) - 100)
+        # ========================================================================
+        # STEP 3: Pre-create environments for all combinations (SPEED OPTIMIZATION)
+        # ========================================================================
+        logger.info("\n[3/5] Creating trading environments...")
+        
+        environments = {}
+        for combo in training_combinations:
+            name = combo['name']
+            
+            env = TradingEnvironment(
+                df=combo['ohlcv'],
+                initial_balance=self.config['initial_balance'],
+                fee_rate=self.config['fee_rate'],
+                slippage=self.config['slippage'],
+                features_df=combo['features'],
+                selected_features=self.ml_predictor.selected_features if hasattr(self.ml_predictor, 'selected_features') else None,  # ← ADD THIS
+                stop_loss=self.config.get('stop_loss'),
+                take_profit=self.config.get('take_profit'),
+                precompute_observations=True,
+                asset=asset,
+                timeframe=timeframe  
+            )
+            
+            environments[name] = {
+                'env': env,
+                'asset': combo['asset'],
+                'timeframe': combo['timeframe']
+            }
+        
+        logger.info(f" Created {len(environments)} environments")
+        
+        # ========================================================================
+        # STEP 4: Determine training strategy
+        # ========================================================================
+        logger.info("\n[4/5] Setting up training strategy...")
+        
+        total_episodes = self.config['rl_episodes']
+        
+        # Calculate episodes per combination
+        episodes_per_combo = max(1, total_episodes // len(training_combinations))
+        
+        # Choose training mode from config (default: interleaved)
+        training_mode = self.config.get('rl_training_mode', 'interleaved')
+        
+        logger.info(f"  Training mode: {training_mode}")
+        logger.info(f"  Total episodes: {total_episodes}")
+        logger.info(f"  Combinations: {len(training_combinations)}")
+        logger.info(f"  Episodes per combo: ~{episodes_per_combo}")
+        
+        # ========================================================================
+        # STEP 5: Execute multi-dimensional training
+        # ========================================================================
+        logger.info("\n[5/5] Starting multi-dimensional training...")
+        logger.info("="*80)
+        
+        if training_mode == 'sequential':
+            episode_results = self._train_sequential(
+                environments, episodes_per_combo, total_episodes
+            )
+        elif training_mode == 'interleaved':
+            episode_results = self._train_interleaved(
+                environments, total_episodes
+            )
+        elif training_mode == 'random':
+            episode_results = self._train_random(
+                environments, total_episodes
+            )
+        else:
+            logger.warning(f"Unknown mode '{training_mode}', using interleaved")
+            episode_results = self._train_interleaved(
+                environments, total_episodes
+            )
+        
+        # ========================================================================
+        # STEP 6: Generate comprehensive report
+        # ========================================================================
+        logger.info("\n" + "="*80)
+        logger.info("GENERATING MULTI-DIMENSIONAL TRAINING REPORT")
+        logger.info("="*80)
+        
+        from src.utils.rl_reporter import RLTrainingReporter
+        
+        reporter = RLTrainingReporter()
+        report = reporter.generate_full_report(
+            episode_results=episode_results,
+            env=list(environments.values())[0]['env'],
+            agent=self.rl_agent,
+            config=self.config,
+            save_path=f'results/rl_multi_dimensional_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
+        )
+        
+        print("\n" + report)
+        
+        # Also generate per-asset and per-timeframe breakdowns
+        self._generate_detailed_analysis(episode_results)
+        
+        logger.info("\n✓ Multi-dimensional training complete!")
+        logger.info(f"  Agent trained on {len(set(e['asset'] for e in episode_results))} assets")
+        logger.info(f"  Agent trained on {len(set(e['timeframe'] for e in episode_results))} timeframes")
+        logger.info(f"  Total episodes: {len(episode_results)}")
+        logger.info(f"  Agent memory: {len(self.rl_agent.memory)} experiences")
+
+    def _train_sequential(self, environments: Dict, episodes_per_combo: int, 
+                        total_episodes: int) -> list:
+        """
+        Train sequentially: BTC_1h → BTC_4h → BTC_1d → ETH_1h → ...
+        
+        Good for: Systematic learning, easy to debug
+        """
+        episode_results = []
+        global_episode = 0
+        
+        logger.info("\n SEQUENTIAL TRAINING MODE")
+        logger.info("  Training each asset-timeframe combo in order\n")
+        
+        for env_name, env_info in environments.items():
+            env = env_info['env']
+            asset = env_info['asset']
+            timeframe = env_info['timeframe']
+            
+            logger.info(f"\n{'='*80}")
+            logger.info(f"Training: {asset} @ {timeframe}")
+            logger.info(f"{'='*80}")
+            
+            with tqdm(total=episodes_per_combo, desc=f"{asset} {timeframe}") as pbar:
+                for episode in range(episodes_per_combo):
+                    stats = self._run_training_episode(
+                        env, asset, timeframe, global_episode
+                    )
+                    episode_results.append(stats)
+                    global_episode += 1
+                    
+                    pbar.update(1)
+                    pbar.set_postfix({
+                        'reward': f"{stats['total_reward']:.2f}",
+                        'epsilon': f"{stats['epsilon']:.3f}"
+                    })
+                    
+                    if global_episode >= total_episodes:
+                        break
+            
+            if global_episode >= total_episodes:
+                break
+            
+            # Log progress after each combination
+            recent = episode_results[-episodes_per_combo:]
+            logger.info(f"  Completed {asset} {timeframe}")
+            logger.info(f"    Avg Reward: {np.mean([e['total_reward'] for e in recent]):.2f}")
+            logger.info(f"    Memory Size: {len(self.rl_agent.memory)}")
+        
+        return episode_results
+
+
+    def _train_interleaved(self, environments: Dict, total_episodes: int) -> list:
+        """
+        Train interleaved: Rotate through all combinations
+        BTC_1h → ETH_1h → SOL_1h → BTC_4h → ETH_4h → ...
+        
+        Good for: Best generalization, balanced learning
+        """
+        import itertools
+        
+        episode_results = []
+        
+        logger.info("\n INTERLEAVED TRAINING MODE")
+        logger.info("  Rotating through all asset-timeframe combinations\n")
+        
+        # Create cycle iterator
+        env_names = list(environments.keys())
+        env_cycle = itertools.cycle(env_names)
+        
+        with tqdm(total=total_episodes, desc="Multi-Dimensional Training") as pbar:
+            for episode in range(total_episodes):
+                # Select next environment
+                env_name = next(env_cycle)
+                env_info = environments[env_name]
+                
+                stats = self._run_training_episode(
+                    env_info['env'],
+                    env_info['asset'],
+                    env_info['timeframe'],
+                    episode
+                )
                 episode_results.append(stats)
                 
-                # Update progress
                 pbar.update(1)
                 pbar.set_postfix({
+                    'combo': f"{env_info['asset']}_{env_info['timeframe']}",
                     'reward': f"{stats['total_reward']:.2f}",
                     'epsilon': f"{stats['epsilon']:.3f}"
                 })
                 
-                self.progress.update('RL Training', episode + 1, {
-                    'current_reward': stats['total_reward'],
-                    'epsilon': stats['epsilon'],
-                    'avg_reward_last_10': np.mean([e['total_reward'] for e in episode_results[-10:]])
+                # Log every 20 episodes
+                if (episode + 1) % 20 == 0:
+                    self._log_progress(episode_results[-20:], episode + 1, total_episodes)
+        
+        return episode_results
+
+
+    def _train_random(self, environments: Dict, total_episodes: int) -> list:
+        """
+        Train with random selection: Each episode picks random asset+timeframe
+        
+        Good for: Maximum diversity, overfitting prevention
+        """
+        import random
+        
+        episode_results = []
+        env_names = list(environments.keys())
+        
+        logger.info("\n RANDOM TRAINING MODE")
+        logger.info("  Randomly selecting asset-timeframe each episode\n")
+        
+        with tqdm(total=total_episodes, desc="Multi-Dimensional Training") as pbar:
+            for episode in range(total_episodes):
+                # Random selection
+                env_name = random.choice(env_names)
+                env_info = environments[env_name]
+                
+                stats = self._run_training_episode(
+                    env_info['env'],
+                    env_info['asset'],
+                    env_info['timeframe'],
+                    episode
+                )
+                episode_results.append(stats)
+                
+                pbar.update(1)
+                pbar.set_postfix({
+                    'combo': f"{env_info['asset']}_{env_info['timeframe']}",
+                    'reward': f"{stats['total_reward']:.2f}",
+                    'epsilon': f"{stats['epsilon']:.3f}"
                 })
                 
-                # Save checkpoint periodically
-                if (episode + 1) % self.config.get('save_interval', 50) == 0:
-                    checkpoint_path = Path(f'models/rl/checkpoint_ep{episode+1}.pth')
-                    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-                    self.rl_agent.save(checkpoint_path)
-                    logger.info(f"  Saved checkpoint at episode {episode+1}")
+                if (episode + 1) % 20 == 0:
+                    self._log_progress(episode_results[-20:], episode + 1, total_episodes)
         
-        # Store results
-        self.training_results['rl_results'] = {
-            'total_episodes': len(episode_results),
-            'final_epsilon': episode_results[-1]['epsilon'],
-            'avg_final_reward': np.mean([e['total_reward'] for e in episode_results[-10:]])
-        }
+        return episode_results
+
+
+    def _run_training_episode(self, env, asset: str, timeframe: str, 
+                            episode_num: int) -> dict:
+        """
+        Run a single training episode
+        
+        Args:
+            env: Trading environment
+            asset: Asset being traded
+            timeframe: Timeframe being used
+            episode_num: Global episode number
+            
+        Returns:
+            Episode statistics dictionary
+        """
+        episode_start = time.time()
+        
+        # Increased max steps for better training
+        MAX_STEPS = 900
+        
+        # Train episode using agent
+        stats = self.rl_agent.train_episode(env, max_steps=MAX_STEPS)
+        
+        # Add comprehensive metadata
+        stats['episode_time'] = time.time() - episode_start
+        stats['asset'] = asset
+        stats['symbol'] = asset
+        stats['timeframe'] = timeframe
+        stats['episode'] = episode_num + 1
+        stats['combination'] = f"{asset}_{timeframe}"
+        
+        return stats
+
+
+    def _log_progress(self, recent_episodes: list, current: int, total: int):
+        """Log training progress with per-asset and per-timeframe breakdown"""
+        
+        # Overall stats
+        avg_reward = np.mean([e['total_reward'] for e in recent_episodes])
+        
+        # Per-asset breakdown
+        by_asset = {}
+        for e in recent_episodes:
+            asset = e['asset']
+            if asset not in by_asset:
+                by_asset[asset] = []
+            by_asset[asset].append(e['total_reward'])
+        
+        # Per-timeframe breakdown
+        by_timeframe = {}
+        for e in recent_episodes:
+            tf = e['timeframe']
+            if tf not in by_timeframe:
+                by_timeframe[tf] = []
+            by_timeframe[tf].append(e['total_reward'])
+        
+        logger.info(f"\n   Progress: Episode {current}/{total}")
+        logger.info(f"    Overall Avg Reward: {avg_reward:.2f}")
+        logger.info(f"    Epsilon: {self.rl_agent.epsilon:.3f}")
+        logger.info(f"    Memory: {len(self.rl_agent.memory):,} experiences")
+        
+        if len(by_asset) > 1:
+            logger.info(f"\n    Per-Asset (last 20 episodes):")
+            for asset in sorted(by_asset.keys()):
+                rewards = by_asset[asset]
+                logger.info(f"      {asset:10s}: {np.mean(rewards):6.2f} avg ({len(rewards)} eps)")
+        
+        if len(by_timeframe) > 1:
+            logger.info(f"\n    Per-Timeframe (last 20 episodes):")
+            for tf in sorted(by_timeframe.keys()):
+                rewards = by_timeframe[tf]
+                logger.info(f"      {tf:4s}: {np.mean(rewards):6.2f} avg ({len(rewards)} eps)")
+
+
+    def _generate_detailed_analysis(self, episode_results: list):
+        """Generate detailed per-asset and per-timeframe analysis"""
+        
+        logger.info("\n" + "="*80)
+        logger.info("DETAILED PERFORMANCE ANALYSIS")
+        logger.info("="*80)
+        
+        # Aggregate by asset
+        by_asset = {}
+        for e in episode_results:
+            asset = e['asset']
+            if asset not in by_asset:
+                by_asset[asset] = []
+            by_asset[asset].append(e)
+        
+        logger.info("\n Per-Asset Performance:")
+        for asset in sorted(by_asset.keys()):
+            episodes = by_asset[asset]
+            rewards = [e['total_reward'] for e in episodes]
+            trades = sum(e.get('num_trades', 0) for e in episodes)
+            
+            logger.info(f"\n  {asset}:")
+            logger.info(f"    Episodes: {len(episodes)}")
+            logger.info(f"    Avg Reward: {np.mean(rewards):.2f}")
+            logger.info(f"    Best Reward: {max(rewards):.2f}")
+            logger.info(f"    Total Trades: {trades}")
+        
+        # Aggregate by timeframe
+        by_timeframe = {}
+        for e in episode_results:
+            tf = e['timeframe']
+            if tf not in by_timeframe:
+                by_timeframe[tf] = []
+            by_timeframe[tf].append(e)
+        
+        logger.info("\n  Per-Timeframe Performance:")
+        for tf in sorted(by_timeframe.keys()):
+            episodes = by_timeframe[tf]
+            rewards = [e['total_reward'] for e in episodes]
+            trades = sum(e.get('num_trades', 0) for e in episodes)
+            
+            logger.info(f"\n  {tf}:")
+            logger.info(f"    Episodes: {len(episodes)}")
+            logger.info(f"    Avg Reward: {np.mean(rewards):.2f}")
+            logger.info(f"    Best Reward: {max(rewards):.2f}")
+            logger.info(f"    Total Trades: {trades}")
+        
+        # Best combinations
+        logger.info("\n Top 5 Asset-Timeframe Combinations:")
+        combo_performance = {}
+        for e in episode_results:
+            combo = f"{e['asset']}_{e['timeframe']}"
+            if combo not in combo_performance:
+                combo_performance[combo] = []
+            combo_performance[combo].append(e['total_reward'])
+        
+        combo_avgs = {k: np.mean(v) for k, v in combo_performance.items()}
+        top_combos = sorted(combo_avgs.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        for i, (combo, avg_reward) in enumerate(top_combos, 1):
+            num_episodes = len(combo_performance[combo])
+            logger.info(f"  {i}. {combo:20s}: {avg_reward:7.2f} avg ({num_episodes} episodes)")
     
     def _save_models(self):
         """Save trained models"""

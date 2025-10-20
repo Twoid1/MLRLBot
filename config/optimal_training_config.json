@@ -16,6 +16,7 @@
   "rl_update_frequency": 4,
   "preload_data": false,
   "cache_features": true,
+  "precompute_observations": true,
   "system_info": {
     "cpu_count": 6,
     "cpu_count_logical": 12,

@@ -704,9 +704,9 @@ class DQNAgent:
         
         return loss
     
-    def train_episode(self, env, max_steps: int = 1000) -> Dict[str, float]:
+    def train_episode(self, env, max_steps: int = 500) -> Dict[str, Any]:
         """
-        Train for one episode
+        Train agent for one episode
         
         Args:
             env: Trading environment
@@ -745,6 +745,26 @@ class DQNAgent:
         # Update episode count
         self.episode_count += 1
         
+        # ========== FIX: ADD THESE LINES ==========
+        # Extract trades from environment
+        trades_list = []
+        if hasattr(env, 'trades'):
+            trades_list = [
+                {
+                    'step': t['step'],
+                    'timestamp': str(t['timestamp']),
+                    'action': t['action'],
+                    'price': float(t['price']),
+                    'size': float(t['size']),
+                    'fees': float(t['fees']),
+                    'pnl': float(t['pnl']) if t['pnl'] is not None else None,
+                    'balance': float(t['balance']),
+                    'equity': float(t['equity'])
+                }
+                for t in env.trades
+            ]
+        # ==========================================
+        
         # Calculate statistics
         stats = {
             'episode': self.episode_count,
@@ -756,13 +776,21 @@ class DQNAgent:
             'epsilon': self.epsilon,
             'portfolio_value': info.get('portfolio_value', 0),
             'win_rate': info.get('win_rate', 0),
-            'sharpe_ratio': info.get('sharpe_ratio', 0)
+            'sharpe_ratio': info.get('sharpe_ratio', 0),
+            'num_trades': info.get('num_trades', 0),
+            'winning_trades': sum(1 for t in trades_list if t.get('pnl') and t['pnl'] > 0),
+            'losing_trades': sum(1 for t in trades_list if t.get('pnl') and t['pnl'] < 0),
+            'max_drawdown': info.get('max_drawdown', 0),
+            
+            # ========== FIX: ADD TRADES LIST ==========
+            'trades': trades_list  # ← ADD THIS LINE
+            # ==========================================
         }
         
         self.training_history.append(stats)
         
         return stats
-    
+
     def evaluate(self, env, n_episodes: int = 10) -> Dict[str, float]:
         """
         Evaluate agent performance
