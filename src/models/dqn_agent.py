@@ -647,7 +647,7 @@ class DQNAgent:
             soft: Use soft update (Polyak averaging)
         """
         if soft:
-            # Soft update: θ' = τ*θ + (1-τ)*θ'
+            # Soft update: Î¸' = Ï„*Î¸ + (1-Ï„)*Î¸'
             for target_param, local_param in zip(
                 self.target_network.parameters(),
                 self.q_network.parameters()
@@ -704,18 +704,21 @@ class DQNAgent:
         
         return loss
     
-    def train_episode(self, env, max_steps: int = 500) -> Dict[str, Any]:
+    def train_episode(self, env, max_steps: int = 500, random_start: bool = True) -> Dict[str, Any]:
         """
         Train agent for one episode
         
         Args:
             env: Trading environment
             max_steps: Maximum steps per episode
+            random_start: If True, start episodes at random positions (prevents overfitting!)
             
         Returns:
             Episode statistics
+        
+        UPDATED: Now uses random episode starts by default for better generalization!
         """
-        state = env.reset()
+        state = env.reset(random_start=random_start, max_steps=max_steps)
         total_reward = 0
         total_loss = 0
         steps = 0
@@ -783,7 +786,7 @@ class DQNAgent:
             'max_drawdown': info.get('max_drawdown', 0),
             
             # ========== FIX: ADD TRADES LIST ==========
-            'trades': trades_list  # ← ADD THIS LINE
+            'trades': trades_list  # â† ADD THIS LINE
             # ==========================================
         }
         
@@ -791,16 +794,20 @@ class DQNAgent:
         
         return stats
 
-    def evaluate(self, env, n_episodes: int = 10) -> Dict[str, float]:
+    def evaluate(self, env, n_episodes: int = 10, random_start: bool = True, max_steps: int = 900) -> Dict[str, float]:
         """
         Evaluate agent performance
         
         Args:
             env: Trading environment
             n_episodes: Number of evaluation episodes
+            random_start: If True, use random episode starts (recommended for diverse evaluation)
+            max_steps: Maximum steps per episode
             
         Returns:
             Evaluation metrics
+        
+        UPDATED: Now supports random starts for more robust evaluation!
         """
         total_rewards = []
         portfolio_values = []
@@ -808,7 +815,7 @@ class DQNAgent:
         sharpe_ratios = []
         
         for episode in range(n_episodes):
-            state = env.reset()
+            state = env.reset(random_start=random_start, max_steps=max_steps)
             episode_reward = 0
             done = False
             

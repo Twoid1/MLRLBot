@@ -156,7 +156,7 @@ class OptimizedSystemTrainer:
         """Load optimized configuration"""
         config = {
             # Assets and timeframes
-            'assets': ['BTC_USDT', 'ETH_USDT', 'SOL_USDT', 'ADA_USDT', 'DOT_USDT'],
+            'assets': ['SOL_USDT', 'AVAX_USDT', 'ADA_USDT', 'ETH_USDT', 'DOT_USDT'],
             'timeframes': ['1h', '4h', '1d'],
             
             # Data settings
@@ -197,7 +197,7 @@ class OptimizedSystemTrainer:
             # RL settings
             'rl_training_mode': 'random',
             'max_steps_per_episode': 900,
-            'rl_episodes': 80,
+            'rl_episodes': 1000,
             'rl_hidden_dims': [256, 256, 128],
             'use_double_dqn': True,
             'use_dueling_dqn': True,
@@ -451,6 +451,15 @@ class OptimizedSystemTrainer:
                 return None
             
             df = pd.read_csv(filepath)
+
+            # 2. Parse timestamp column
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+            # 3. Set as index
+            df.set_index('timestamp', inplace=True)
+
+            # 4. NOW you can filter by date
+            df = df[df.index >= pd.to_datetime('2021-01-01')]
             
             # Parse timestamp
             timestamp_cols = ['timestamp', 'date', 'time', 'datetime']

@@ -59,7 +59,7 @@ class TradingEnvironment:
     Custom trading environment for cryptocurrency trading
     Supports both long and short positions with realistic fee modeling
     
-    ⚡ OPTIMIZED: Pre-computes all observations for 10-30x faster training!
+    âš¡ OPTIMIZED: Pre-computes all observations for 10-30x faster training!
     """
     
     def __init__(self,
@@ -79,7 +79,7 @@ class TradingEnvironment:
                  selected_features: Optional[List[str]] = None,
                  precompute_observations: bool = True,
                  asset: str = 'BTC/USD',
-                 timeframe: str = '1h'):  # ← NEW PARAMETER
+                 timeframe: str = '1h'):  # â† NEW PARAMETER
         """
         Initialize trading environment
         
@@ -133,7 +133,7 @@ class TradingEnvironment:
         self.enable_short = enable_short
         self.stop_loss = stop_loss
         self.take_profit = take_profit
-        self.precompute_observations = precompute_observations  # ← NEW
+        self.precompute_observations = precompute_observations  # â† NEW
         
         # State tracking
         self.current_step = 0
@@ -175,14 +175,14 @@ class TradingEnvironment:
         self.asset_encoding = self._encode_asset(asset)
         self.timeframe_encoding = self._encode_timeframe(timeframe)
         
-        # ⚡ PRE-COMPUTE ALL OBSERVATIONS (NEW!)
+        # âš¡ PRE-COMPUTE ALL OBSERVATIONS (NEW!)
         self.precomputed_obs = None
         if self.precompute_observations:
             self._precompute_all_observations()
     
     def _precompute_all_observations(self):
         """
-        ⚡ PRE-COMPUTE all observations for the entire dataset
+        âš¡ PRE-COMPUTE all observations for the entire dataset
         
         This is the KEY optimization that gives 10-30x speedup!
         Instead of calculating features every step, we calculate them
@@ -217,7 +217,7 @@ class TradingEnvironment:
             # Temporarily set current_step
             self.current_step = i
             
-            # ✅ FIX: Get base observation + add encodings
+            # âœ… FIX: Get base observation + add encodings
             base_obs = self._calculate_observation()  # 70 dims
             
             # Add asset and timeframe encodings (same for all steps in this episode)
@@ -266,7 +266,7 @@ class TradingEnvironment:
         """
         Get observation space shape
         
-        ✅ MODIFIED: Accounts for new encodings
+        âœ… MODIFIED: Accounts for new encodings
         """
         # Original observation dimensions
         market_features = 50  # From features
@@ -274,7 +274,7 @@ class TradingEnvironment:
         account_features = 5  # Balance, equity, etc.
         position_features = 5  # Position, entry_price, etc.
         
-        # ✅ NEW: Asset and timeframe encodings
+        # âœ… NEW: Asset and timeframe encodings
         asset_encoding_dim = 5
         timeframe_encoding_dim = 6
         
@@ -376,18 +376,44 @@ class TradingEnvironment:
         return np.array([tf_scale, is_intraday, is_fast, candles_per_day_normalized], 
                     dtype=np.float32)
     
-    def reset(self, seed: Optional[int] = None) -> np.ndarray:
+    def reset(self, seed: Optional[int] = None, random_start: bool = True, max_steps: int = 900) -> np.ndarray:
         """
         Reset environment to initial state
         
+        Args:
+            seed: Random seed for reproducibility
+            random_start: If True, start at random position in data (prevents overfitting!)
+            max_steps: Maximum steps per episode (used to ensure enough data remains)
+        
         Returns:
             Initial observation
+        
+        UPDATED: Now supports random episode starts for better generalization!
+        This prevents the agent from learning temporal patterns and forces it
+        to learn robust strategies that work across different market regimes.
         """
         if seed is not None:
             np.random.seed(seed)
         
-        # Reset step counter
-        self.current_step = self.window_size
+        # ✅ NEW: Random starting position (CRITICAL for preventing overfitting!)
+        if random_start and len(self.prices) > max_steps + self.window_size + 100:
+            # Calculate valid range for starting position
+            # Must have: window_size data before + max_steps data after + buffer
+            min_start = self.window_size
+            max_start = len(self.prices) - max_steps - 50  # 50 step buffer
+            
+            # Randomly select starting position
+            self.current_step = np.random.randint(min_start, max_start)
+            
+            # Optional: Log the date range for this episode (useful for debugging)
+            if hasattr(self, 'df') and len(self.df) > self.current_step:
+                start_date = self.df.index[self.current_step]
+                end_idx = min(self.current_step + max_steps, len(self.df) - 1)
+                end_date = self.df.index[end_idx]
+                logger.debug(f"  Episode starts at step {self.current_step}: {start_date.date()} to {end_date.date()}")
+        else:
+            # Sequential mode (original behavior) - starts at beginning
+            self.current_step = self.window_size
         
         # Reset position
         self.position = Positions.FLAT
@@ -428,9 +454,9 @@ class TradingEnvironment:
         # Execute action
         self._execute_action(action)
         
-        # ← ADD THIS: Validate balance after action
+        # â† ADD THIS: Validate balance after action
         if not self._validate_balance():
-            logger.warning("❌ Balance validation failed, ending episode")
+            logger.warning("âŒ Balance validation failed, ending episode")
             # Return current state even though episode is done
             observation = self._get_observation()
             reward = self._calculate_reward(prev_portfolio_value)
@@ -501,7 +527,7 @@ class TradingEnvironment:
             # Get the 50 selected features for this step
             market_features = self.features_df.iloc[self.current_step].values
             
-            # ✅ CRITICAL: Validate we have exactly 50 features
+            # âœ… CRITICAL: Validate we have exactly 50 features
             if len(market_features) != 50:
                 # If we have more than 50, something went wrong with filtering
                 # Take only first 50 as emergency fallback
@@ -591,7 +617,7 @@ class TradingEnvironment:
         # Clip extreme values
         observation = np.clip(observation, -10, 10)
         
-        # ✅ FINAL VALIDATION: Should be exactly 70 dimensions (50+10+5+5)
+        # âœ… FINAL VALIDATION: Should be exactly 70 dimensions (50+10+5+5)
         assert len(observation) == 70, f"Expected 70 dimensions but got {len(observation)}!"
         
         return observation
@@ -610,7 +636,7 @@ class TradingEnvironment:
             self._execute_sell(current_price)
         # HOLD action doesn't change position
         
-        # ← ADD THIS VALIDATION CHECK
+        # â† ADD THIS VALIDATION CHECK
         if not self._validate_position_size():
             logger.warning(" Position validation failed, ending episode")
             self.done = True
@@ -631,10 +657,10 @@ class TradingEnvironment:
         3. Proper fee calculation
         """
         
-        # ✅ FIX #1: Can only buy if FLAT or closing SHORT
+        # âœ… FIX #1: Can only buy if FLAT or closing SHORT
         if self.position == Positions.LONG:
             # Already long, can't buy more (no pyramiding)
-            logger.warning(f"Step {self.current_step}: Attempted to BUY while already LONG - ignoring")
+            #logger.warning(f"Step {self.current_step}: Attempted to BUY while already LONG - ignoring")
             return
         
         if self.position == Positions.SHORT and self.enable_short:
@@ -647,9 +673,9 @@ class TradingEnvironment:
         # Calculate capital to use (95% for safety)
         available_capital = self.balance * 0.95
         
-        # ✅ FIX #2: Check if we have enough capital
+        # âœ… FIX #2: Check if we have enough capital
         if available_capital < 10:  # Minimum $10 to trade
-            logger.warning(f"Step {self.current_step}: Insufficient capital ${available_capital:.2f} - skipping trade")
+            #logger.warning(f"Step {self.current_step}: Insufficient capital ${available_capital:.2f} - skipping trade")
             return
         
         # Apply slippage to price
@@ -667,7 +693,7 @@ class TradingEnvironment:
         # Net position after fees
         net_position_size = gross_position_size - coins_lost_to_fees
         
-        # ✅ FIX #3: Validate position BEFORE setting it
+        # âœ… FIX #3: Validate position BEFORE setting it
         position_value = net_position_size * execution_price
         if position_value > self.initial_balance * 2:
             logger.error(f"Step {self.current_step}: Calculated position ${position_value:.2f} exceeds 2x initial balance!")
@@ -676,7 +702,7 @@ class TradingEnvironment:
             logger.error(f"  Would get: {net_position_size:.2f} coins")
             return  # Don't execute this trade
         
-        # ✅ FIX #4: Deduct FULL amount from balance (capital + fees)
+        # âœ… FIX #4: Deduct FULL amount from balance (capital + fees)
         self.balance -= available_capital
         
         # Set position
@@ -689,7 +715,7 @@ class TradingEnvironment:
         # Record trade
         self._record_trade('BUY', execution_price, self.position_size, fee_in_dollars)
         
-        # ✅ FIX #5: Add debug logging to track position accumulation
+        # âœ… FIX #5: Add debug logging to track position accumulation
         logger.debug(f"BUY executed at step {self.current_step}:")
         logger.debug(f"  Capital used: ${available_capital:.2f}")
         logger.debug(f"  Price: ${execution_price:.4f}")
@@ -707,10 +733,10 @@ class TradingEnvironment:
         2. Correct proceeds calculation
         """
         
-        # ✅ FIX #1: Can only sell if LONG or opening SHORT
+        # âœ… FIX #1: Can only sell if LONG or opening SHORT
         if self.position == Positions.FLAT and not self.enable_short:
             # Can't sell when flat (unless shorting enabled)
-            logger.warning(f"Step {self.current_step}: Attempted to SELL while FLAT - ignoring")
+            #logger.warning(f"Step {self.current_step}: Attempted to SELL while FLAT - ignoring")
             return
         
         if self.position == Positions.LONG:
@@ -759,7 +785,7 @@ class TradingEnvironment:
         current_price = self._get_current_price()
         position_value = self.position_size * current_price
         
-        # ✅ TIGHTER LIMIT: 2x instead of 10x
+        # âœ… TIGHTER LIMIT: 2x instead of 10x
         max_reasonable_position = self.initial_balance * 2
         
         if position_value > max_reasonable_position:
@@ -774,7 +800,7 @@ class TradingEnvironment:
             logger.error(f"Current balance:   ${self.balance:,.2f}")
             logger.error(f"Current step:      {self.current_step}")
             
-            # ✅ NEW: Show how we got here
+            # âœ… NEW: Show how we got here
             recent_trades = self.trades[-5:] if len(self.trades) >= 5 else self.trades
             logger.error("\nRecent trades:")
             for trade in recent_trades:
@@ -842,7 +868,7 @@ class TradingEnvironment:
         3. Reset position_size to ZERO
         """
         
-        # ✅ FIX #1: Verify we're in a position
+        # âœ… FIX #1: Verify we're in a position
         if self.position == Positions.FLAT:
             logger.warning(f"Step {self.current_step}: Attempted to close FLAT position - ignoring")
             return
@@ -870,7 +896,7 @@ class TradingEnvironment:
         
         net_pnl = gross_pnl - fees
         
-        # ✅ FIX #2: Add proceeds back to balance
+        # âœ… FIX #2: Add proceeds back to balance
         self.balance += net_proceeds
         
         # Track PnL
@@ -880,11 +906,11 @@ class TradingEnvironment:
         # Record trade
         self._record_trade(action, execution_price, self.position_size, fees, gross_pnl)
         
-        # ✅ FIX #3: CRITICAL - Reset position to ZERO
+        # âœ… FIX #3: CRITICAL - Reset position to ZERO
         old_position_size = self.position_size
         self.position = Positions.FLAT
         self.entry_price = 0
-        self.position_size = 0  # ← MUST reset to zero!
+        self.position_size = 0  # â† MUST reset to zero!
         self.unrealized_pnl = 0
         
         # Debug logging
@@ -1248,7 +1274,7 @@ def test_environment():
         enable_short=False,
         stop_loss=0.05,
         take_profit=0.10,
-        precompute_observations=True  # ← ENABLED!
+        precompute_observations=True  # â† ENABLED!
     )
     
     # Run a simple episode
