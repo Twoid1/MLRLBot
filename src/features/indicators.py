@@ -369,7 +369,7 @@ class TechnicalIndicators:
                           low.rolling(window=span_b).min()) / 2).shift(displacement)
         
         # Lagging Span (Chikou Span)
-        lagging_span = close.shift(-displacement)
+        lagging_span = None
         
         return {
             'conversion_line': conversion_line,

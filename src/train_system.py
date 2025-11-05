@@ -552,7 +552,7 @@ class SystemTrainer:
             # Filter to only selected features
             filtered_features = features_df[available_features].copy()
             
-            logger.info(f"  {asset}: {features_df.shape[1]} → {filtered_features.shape[1]} features")
+            logger.info(f"  {asset}: {features_df.shape[1]} -> {filtered_features.shape[1]} features")
             
             filtered_data[asset] = (ohlcv_df, filtered_features)
         
@@ -833,6 +833,12 @@ class SystemTrainer:
             rl_path = models_dir / f'rl_agent_{timestamp}.pt'
             self.rl_agent.save(str(rl_path))
             logger.info(f"   RL agent saved: {rl_path}")
+
+        if self.feature_engineer is not None:
+            import joblib
+            fe_path = models_dir / 'feature_engineer.pkl'
+            joblib.dump(self.feature_engineer, fe_path)
+            logger.info(f"   Feature engineer saved: {fe_path}")
         
         # Save training results
         results_dir = Path(self.config['results_dir'])

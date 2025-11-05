@@ -314,10 +314,7 @@ class FeatureEngineer:
         # ICHIMOKU CLOUD (5 features) - NEW
         features['ichimoku_tenkan'] = (df['high'].rolling(9).max() + df['low'].rolling(9).min()) / 2
         features['ichimoku_kijun'] = (df['high'].rolling(26).max() + df['low'].rolling(26).min()) / 2
-        features['ichimoku_senkou_a'] = ((features['ichimoku_tenkan'] + features['ichimoku_kijun']) / 2).shift(26)
-        features['ichimoku_senkou_b'] = ((df['high'].rolling(52).max() + df['low'].rolling(52).min()) / 2).shift(26)
-        features['ichimoku_chikou'] = df['close'].shift(-26)
-        
+
         # CHAIKIN OSCILLATOR (1 feature) - NEW
         ad = ((2 * df['close'] - df['high'] - df['low']) / (df['high'] - df['low'] + 1e-10)) * df['volume']
         features['chaikin_osc'] = ad.ewm(span=3).mean() - ad.ewm(span=10).mean()
@@ -852,11 +849,26 @@ class FeatureEngineer:
                         higher_tf: pd.DataFrame, 
                         base_index: pd.DatetimeIndex) -> pd.DataFrame:
         """
-        Align higher timeframe data to base timeframe index
-        Forward fill to propagate values
+        Align higher timeframe data to base timeframe WITHOUT look-ahead bias
+        
+        Critical: Must shift(1) to only use COMPLETED bars from higher timeframe
+        
+        Example:
+            At 1h 10:00, use 4h bar from 04:00-08:00 (completed)
+            NOT the bar from 08:00-12:00 (incomplete - contains future data!)
         """
-        # Resample and forward fill
-        aligned = higher_tf.reindex(base_index, method='ffill')
+        # ✅ CRITICAL FIX: Shift by 1 to use only completed bars
+        shifted = higher_tf.shift(1)
+        
+        # Now align (safe because we already shifted)
+        aligned = shifted.reindex(base_index).ffill()
+        
+        # Backfill any remaining NaNs at the start
+        aligned = aligned.bfill()
+        
+        # Fill any remaining NaNs
+        aligned = aligned.fillna(0)
+        
         return aligned
     
     def create_feature_matrix(self, 

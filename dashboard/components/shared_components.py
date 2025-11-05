@@ -369,7 +369,7 @@ class AlertComponents:
                 'fontSize': '1.25rem'
             }),
             html.Span(message, style={'flex': '1'}),
-            html.Button('×', style={
+            html.Button('x', style={
                 'background': 'none',
                 'border': 'none',
                 'color': alert_style['border'],

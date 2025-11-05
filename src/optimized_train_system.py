@@ -197,7 +197,7 @@ class OptimizedSystemTrainer:
             # RL settings
             'rl_training_mode': 'random',
             'max_steps_per_episode': 900,
-            'rl_episodes': 1000,
+            'rl_episodes': 1100,
             'rl_hidden_dims': [256, 256, 128],
             'use_double_dqn': True,
             'use_dueling_dqn': True,
@@ -562,9 +562,13 @@ class OptimizedSystemTrainer:
     
     def _split_data_fast(self, data: Dict, features: Dict) -> Tuple[Dict, Dict, Dict]:
         """
-        Fast vectorized data splitting
+        Fast vectorized data splitting WITH proper buffers
         """
         train_data, val_data, test_data = {}, {}, {}
+        
+        # Get lookforward and buffer settings
+        lookforward = self.config.get('lookforward', 10)  # Default 10 if not set
+        buffer_size = self.config.get('buffer_size', 5)    # Default 5 if not set
         
         for symbol in tqdm(self.config['assets'], desc="Splitting data"):
             if symbol not in features:
@@ -585,14 +589,48 @@ class OptimizedSystemTrainer:
             ohlcv = ohlcv.loc[common_idx]
             feats = feats.loc[common_idx]
             
-            # Fast splitting using array slicing
+            # ✅ Calculate split indices with buffers
             n = len(ohlcv)
-            train_end = int(n * self.config['train_split'])
-            val_end = train_end + int(n * self.config['validation_split'])
             
-            train_data[symbol] = (ohlcv.iloc[:train_end], feats.iloc[:train_end])
-            val_data[symbol] = (ohlcv.iloc[train_end:val_end], feats.iloc[train_end:val_end])
-            test_data[symbol] = (ohlcv.iloc[val_end:], feats.iloc[val_end:])
+            # Training: ends BEFORE lookforward buffer
+            train_end = int(n * self.config['train_split']) - lookforward
+            
+            # Validation: starts AFTER buffer, ends BEFORE lookforward
+            val_start = train_end + buffer_size
+            val_end = val_start + int(n * self.config['validation_split']) - lookforward
+            
+            # Test: starts AFTER buffer
+            test_start = val_end + buffer_size
+            
+            # Ensure we have enough data
+            if train_end < 100 or val_start >= val_end or test_start >= n:
+                logger.warning(f"{symbol}: Insufficient data after buffers, skipping")
+                continue
+            
+            # ✅ Split with proper buffers
+            train_data[symbol] = (
+                ohlcv.iloc[:train_end], 
+                feats.iloc[:train_end]
+            )
+            val_data[symbol] = (
+                ohlcv.iloc[val_start:val_end], 
+                feats.iloc[val_start:val_end]
+            )
+            test_data[symbol] = (
+                ohlcv.iloc[test_start:], 
+                feats.iloc[test_start:]
+            )
+            
+            # ✅ Log the split info
+            logger.info(f"{symbol}:")
+            logger.info(f"  Train: {len(train_data[symbol][0])} samples "
+                    f"({ohlcv.index[0]} to {ohlcv.index[train_end-1]})")
+            logger.info(f"  Val: {len(val_data[symbol][0])} samples "
+                    f"({ohlcv.index[val_start]} to {ohlcv.index[val_end-1]})")
+            logger.info(f"  Test: {len(test_data[symbol][0])} samples "
+                    f"({ohlcv.index[test_start]} to {ohlcv.index[-1]})")
+            logger.info(f"  Lookforward buffer: {lookforward} periods")
+            logger.info(f"  Split buffer: {buffer_size} periods")
             
             self.progress.update('Data Splitting', len(train_data))
         
@@ -893,7 +931,7 @@ class OptimizedSystemTrainer:
         # Also generate per-asset and per-timeframe breakdowns
         self._generate_detailed_analysis(episode_results)
         
-        logger.info("\n✓ Multi-dimensional training complete!")
+        logger.info("\n Multi-dimensional training complete!")
         logger.info(f"  Agent trained on {len(set(e['asset'] for e in episode_results))} assets")
         logger.info(f"  Agent trained on {len(set(e['timeframe'] for e in episode_results))} timeframes")
         logger.info(f"  Total episodes: {len(episode_results)}")
@@ -1192,6 +1230,14 @@ class OptimizedSystemTrainer:
             self.rl_agent.save(rl_path)
             logger.info(f"Saved RL agent to {rl_path}")
             self.progress.update('Saving Models', 2)
+
+        if self.feature_engineer:
+            import joblib
+            fe_path = Path('models/feature_engineer.pkl')
+            fe_path.parent.mkdir(parents=True, exist_ok=True)
+            joblib.dump(self.feature_engineer, fe_path)
+            logger.info(f"Saved feature engineer to {fe_path}")
+            self.progress.update('Saving Models', 3)
         
         # Save training results
         results_path = Path(f'results/training_results_{timestamp}.json')

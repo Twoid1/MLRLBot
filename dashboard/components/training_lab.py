@@ -208,7 +208,7 @@ class TrainingLab:
                     style={'marginBottom': '1rem', 'color': 'white'}
                 ),
                 html.Div(id='strategy-info', children=[
-                    html.P('✓ Trains on 5+ assets × 5+ timeframes simultaneously', 
+                    html.P('✓ Trains on 5+ assets x 5+ timeframes simultaneously', 
                           style={'color': '#00ff88', 'fontSize': '0.85rem', 'margin': '0.25rem 0'}),
                     html.P('✓ Patterns from BTC improve ETH predictions', 
                           style={'color': '#00ff88', 'fontSize': '0.85rem', 'margin': '0.25rem 0'}),
@@ -279,7 +279,7 @@ class TrainingLab:
     def _create_enhanced_feature_selection_card(self):
         """Enhanced feature selection showing 100 → 50 features"""
         return html.Div([
-            html.H3('Feature Engineering (100 → 50)', style={'color': 'white', 'marginBottom': '1rem'}),
+            html.H3('Feature Engineering (100 -> 50)', style={'color': 'white', 'marginBottom': '1rem'}),
             
             # Feature overview
             html.Div([
@@ -529,7 +529,7 @@ class TrainingLab:
                             'borderRadius': '4px',
                             'marginBottom': '0.25rem'
                         }),
-                        html.P('Train → Test → Future', 
+                        html.P('Train -> Test -> Future', 
                               style={'fontSize': '0.75rem', 'color': '#888', 'textAlign': 'center'})
                     ])
                 ], style={'marginTop': '1rem'})

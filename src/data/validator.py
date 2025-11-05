@@ -330,15 +330,15 @@ class DataValidator:
             df_fixed[numeric_columns] = df_fixed[numeric_columns].interpolate(method='linear')
             
             # Forward fill any remaining NaN values
-            df_fixed[numeric_columns] = df_fixed[numeric_columns].fillna(method='ffill')
+            df_fixed[numeric_columns] = df_fixed[numeric_columns].ffill()
             
             # Backward fill any remaining NaN values
-            df_fixed[numeric_columns] = df_fixed[numeric_columns].fillna(method='bfill')
+            df_fixed[numeric_columns] = df_fixed[numeric_columns].bfill()
             
         elif method == 'forward_fill':
-            df_fixed = df_fixed.fillna(method='ffill')
+            df_fixed = df_fixed.ffill()
         elif method == 'backward_fill':
-            df_fixed = df_fixed.fillna(method='bfill')
+            df_fixed = df_fixed.bfill()
         else:
             # Default: fill with mean
             for col in df_fixed.select_dtypes(include=[np.number]).columns:
@@ -948,8 +948,8 @@ class DataValidator:
             if zero_mask.any():
                 df_fixed.loc[zero_mask, 'volume'] = np.nan
                 df_fixed['volume'] = df_fixed['volume'].interpolate(method='linear')
-                df_fixed['volume'] = df_fixed['volume'].fillna(method='ffill')
-                df_fixed['volume'] = df_fixed['volume'].fillna(method='bfill')
+                df_fixed['volume'] = df_fixed['volume'].ffill()
+                df_fixed['volume'] = df_fixed['volume'].bfill()
         
         return df_fixed
     

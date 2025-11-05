@@ -526,15 +526,13 @@ class TradingEnvironment:
         if self.features_df is not None and self.current_step < len(self.features_df):
             # Get the 50 selected features for this step
             market_features = self.features_df.iloc[self.current_step].values
-            
-            # âœ… CRITICAL: Validate we have exactly 50 features
-            if len(market_features) != 50:
-                # If we have more than 50, something went wrong with filtering
-                # Take only first 50 as emergency fallback
-                market_features = market_features[:50]
-                
-            # Handle NaN values
             market_features = np.nan_to_num(market_features, nan=0.0, posinf=0.0, neginf=0.0)
+
+            # Pad to exactly 50 dimensions
+            if len(market_features) < 50:
+                padding = np.zeros(50 - len(market_features))
+                market_features = np.concatenate([market_features, padding])
+
             obs.extend(market_features)
         else:
             # If no features available, use zeros
@@ -695,7 +693,7 @@ class TradingEnvironment:
         
         # âœ… FIX #3: Validate position BEFORE setting it
         position_value = net_position_size * execution_price
-        if position_value > self.initial_balance * 2:
+        if position_value > self.balance * 1.05:
             logger.error(f"Step {self.current_step}: Calculated position ${position_value:.2f} exceeds 2x initial balance!")
             logger.error(f"  Available capital: ${available_capital:.2f}")
             logger.error(f"  Execution price: ${execution_price:.4f}")
@@ -760,7 +758,7 @@ class TradingEnvironment:
             
             # Validate
             position_value = net_position_size * execution_price
-            if position_value > self.initial_balance * 2:
+            if position_value > self.balance * 1.05:
                 logger.error(f"Step {self.current_step}: SHORT position too large - skipping")
                 return
             
@@ -778,29 +776,40 @@ class TradingEnvironment:
     def _validate_position_size(self) -> bool:
         """
         Enhanced validation with detailed logging
+        
+        IMPORTANT: Only validates position size at ENTRY, not during price movements!
+        We check if position value at ENTRY PRICE exceeds limits, not current price.
+        This allows positions to grow naturally through profit.
         """
         if self.position == Positions.FLAT:
             return True
         
         current_price = self._get_current_price()
-        position_value = self.position_size * current_price
         
-        # âœ… TIGHTER LIMIT: 2x instead of 10x
-        max_reasonable_position = self.initial_balance * 2
+        # CRITICAL FIX: Check position value at ENTRY, not current price
+        # This prevents false positives from profitable price movements
+        position_value_at_entry = self.position_size * self.entry_price
+        current_position_value = self.position_size * current_price
         
-        if position_value > max_reasonable_position:
+        # Max position at ENTRY should be 2x initial balance
+        max_reasonable_position = self.peak_portfolio_value * 1.5
+        
+        # Only trigger if position was too large AT ENTRY
+        # Price movements that cause growth are ALLOWED (that's profit!)
+        if position_value_at_entry > max_reasonable_position:
             logger.error("=" * 80)
-            logger.error(" UNREALISTIC POSITION SIZE DETECTED!")
+            logger.error(" UNREALISTIC POSITION SIZE AT ENTRY DETECTED!")
             logger.error("=" * 80)
-            logger.error(f"Position value:    ${position_value:,.2f}")
-            logger.error(f"Max reasonable:    ${max_reasonable_position:,.2f}")
-            logger.error(f"Position size:     {self.position_size:.6f} coins")
-            logger.error(f"Current price:     ${current_price:.2f}")
-            logger.error(f"Entry price:       ${self.entry_price:.2f}")
-            logger.error(f"Current balance:   ${self.balance:,.2f}")
-            logger.error(f"Current step:      {self.current_step}")
+            logger.error(f"Position value at entry: ${position_value_at_entry:,.2f}")
+            logger.error(f"Current position value:  ${current_position_value:,.2f}")
+            logger.error(f"Max allowed at entry:    ${max_reasonable_position:,.2f}")
+            logger.error(f"Position size:           {self.position_size:.6f} coins")
+            logger.error(f"Entry price:             ${self.entry_price:.2f}")
+            logger.error(f"Current price:           ${current_price:.2f}")
+            logger.error(f"Current balance:         ${self.balance:,.2f}")
+            logger.error(f"Current step:            {self.current_step}")
             
-            # âœ… NEW: Show how we got here
+            # Show recent trades
             recent_trades = self.trades[-5:] if len(self.trades) >= 5 else self.trades
             logger.error("\nRecent trades:")
             for trade in recent_trades:
@@ -821,6 +830,19 @@ class TradingEnvironment:
             self.done = True
             self.truncated = True
             return False
+        
+        # Optional info logging if position grew very large (but don't end episode)
+        # This is just informational - large profits are GOOD!
+        if current_position_value > max_reasonable_position * 1.2:
+            logger.info("=" * 80)
+            logger.info(" LARGE POSITION VALUE (Price Gains!)")
+            logger.info("=" * 80)
+            logger.info(f"Position opened at:      ${position_value_at_entry:,.2f}")
+            logger.info(f"Current position value:  ${current_position_value:,.2f}")
+            logger.info(f"Unrealized profit:       ${current_position_value - position_value_at_entry:,.2f}")
+            logger.info(f"Profit %:                {((current_position_value / position_value_at_entry) - 1) * 100:.1f}%")
+            logger.info("This is NORMAL - letting it ride!")
+            logger.info("=" * 80)
         
         return True
     

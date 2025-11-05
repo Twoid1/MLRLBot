@@ -704,7 +704,7 @@ class DataCommands:
                         elif error['type'] == 'TIMESTAMP_GAP':
                             print(f"\n  [{i}] After Row {error['row_number']}")
                             print(f"      Issue: {error['issue']}")
-                            print(f"      Gap: {error['timestamp_before']} → {error['timestamp_after']}")
+                            print(f"      Gap: {error['timestamp_before']} -> {error['timestamp_after']}")
                             print(f"      Missing: ~{error['missing_candles']} candles")
                             print(f"      Fix: {error['suggestion']}")
                     

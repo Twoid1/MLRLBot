@@ -234,20 +234,37 @@ def handle_features_command(args):
 
 def handle_backtest_command(args):
     """Handle backtesting commands"""
-    from src.backtesting.backtester import Backtester, BacktestConfig
     
     if args.run:
-        logger.info("Running backtest...")
+        logger.info("Running standard backtest...")
+        from src.backtesting.backtester import Backtester, BacktestConfig
+        
         backtester = Backtester(BacktestConfig())
         results = backtester.run()
-        logger.info(f" Backtest complete: {results}")
+        logger.info(f" Backtest complete")
         
     elif args.walk_forward:
-        logger.info("Running walk-forward analysis...")
-        from src.backtesting.walk_forward import WalkForwardAnalyzer
-        analyzer = WalkForwardAnalyzer()
-        results = analyzer.run()
-        logger.info(f" Walk-forward analysis complete")
+        logger.info("\n" + "="*80)
+        logger.info("WALK-FORWARD VALIDATION (2025 HOLDOUT DATA)")
+        logger.info("="*80)
+        
+        try:
+            # Import the comprehensive walk-forward runner from project root
+            from src.backtesting.walk_forward_runner import run_walk_forward_validation
+            
+            # Run validation on 2025 data from data/raw
+            results = run_walk_forward_validation()
+            
+            logger.info("\n Walk-forward validation complete!")
+            logger.info(f"   Test Period: Jan 1 - Oct 26, 2025")
+            logger.info(f"   Average Return: {results['avg_return']:.2f}%")
+            logger.info(f"   Average Sharpe: {results['avg_sharpe']:.2f}")
+            logger.info(f"   Successful on: {len([r for r in results['individual_results'].values() if r['total_return'] > 0])}/{len(results['individual_results'])} assets")
+            
+        except Exception as e:
+            logger.error(f"Walk-forward validation failed: {e}", exc_info=True)
+            import sys
+            sys.exit(1)
 
 
 def handle_paper_command(args):

@@ -1,86 +1,88 @@
 {
-  "start_time": "2025-10-28T17:57:18.101001",
+  "start_time": "2025-11-04T15:46:08.564109",
   "stages": {
     "Data Loading": {
-      "start_time": 1761699439.0111656,
+      "start_time": 1762299972.7994313,
       "total_items": 15,
       "completed_items": 15,
       "status": "completed",
       "progress": 100.0,
-      "elapsed_time": 2.947803497314453,
-      "end_time": 1761699442.395211,
-      "total_time": 3.384045362472534,
+      "elapsed_time": 2.945751905441284,
+      "end_time": 1762299976.1730661,
+      "total_time": 3.3736348152160645,
       "final_metrics": {
         "datasets_loaded": 15,
-        "time_seconds": 3.3840439319610596
+        "time_seconds": 3.37363338470459
       }
     },
     "Feature Engineering": {
-      "start_time": 1761699442.3957043,
-      "total_items": 5,
-      "completed_items": 0,
-      "status": "completed",
-      "end_time": 1761699442.5064514,
-      "total_time": 0.11074709892272949,
-      "final_metrics": {
-        "feature_sets": 5,
-        "time_seconds": 0.11074709892272949
-      }
-    },
-    "Data Splitting": {
-      "start_time": 1761699442.5070221,
+      "start_time": 1762299976.1735637,
       "total_items": 5,
       "completed_items": 5,
       "status": "completed",
       "progress": 100.0,
-      "elapsed_time": 0.10486364364624023,
-      "end_time": 1761699442.6126494,
-      "total_time": 0.10562729835510254,
+      "elapsed_time": 32.300118923187256,
+      "end_time": 1762300008.9550073,
+      "total_time": 32.78144359588623,
       "final_metrics": {
-        "time_seconds": 0.10562872886657715
+        "feature_sets": 5,
+        "time_seconds": 32.781442403793335
+      }
+    },
+    "Data Splitting": {
+      "start_time": 1762300008.955505,
+      "total_items": 5,
+      "completed_items": 5,
+      "status": "completed",
+      "progress": 100.0,
+      "elapsed_time": 0.10271954536437988,
+      "end_time": 1762300009.0590389,
+      "total_time": 0.10353398323059082,
+      "final_metrics": {
+        "time_seconds": 0.10353469848632812
       }
     },
     "ML Training": {
-      "start_time": 1761699442.6130583,
+      "start_time": 1762300009.0594974,
       "total_items": 100,
       "completed_items": 100,
       "status": "completed",
       "progress": 100.0,
-      "elapsed_time": 141.36521100997925,
+      "elapsed_time": 142.08666276931763,
       "metrics": {
-        "accuracy": 0.692343152468202,
-        "f1_score": 0.6831396036400965
+        "accuracy": 0.6573053500427802,
+        "f1_score": 0.6484508069881746
       },
-      "end_time": 1761699583.9790206,
-      "total_time": 141.365962266922,
+      "end_time": 1762300151.1469338,
+      "total_time": 142.0874364376068,
       "final_metrics": {
-        "time_seconds": 141.3659610748291,
-        "accuracy": 0.692343152468202
+        "time_seconds": 142.08743500709534,
+        "accuracy": 0.6573053500427802
       }
     },
     "RL Training": {
-      "start_time": 1761699583.9795556,
-      "total_items": 1000,
+      "start_time": 1762300151.147487,
+      "total_items": 1100,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1761702196.246399,
-      "total_time": 2612.266843318939,
+      "end_time": 1762302975.8474329,
+      "total_time": 2824.6999459266663,
       "final_metrics": {
-        "time_seconds": 2612.2668397426605,
-        "episodes": 1000
+        "time_seconds": 2824.699942588806,
+        "episodes": 1100
       }
     },
     "Saving Models": {
-      "start_time": 1761702196.247134,
+      "start_time": 1762302975.8483026,
       "total_items": 2,
-      "completed_items": 2,
+      "completed_items": 3,
       "status": "completed",
-      "progress": 100.0,
-      "elapsed_time": 0.44910335540771484,
-      "end_time": 1761702196.6973698,
-      "total_time": 0.45023584365844727,
+      "progress": 150.0,
+      "elapsed_time": 0.2744100093841553,
+      "end_time": 1762302976.1237514,
+      "total_time": 0.2754487991333008,
       "final_metrics": {
-        "time_seconds": 0.45023632049560547
+        "time_seconds": 0.2754495143890381
       }
     }
   },

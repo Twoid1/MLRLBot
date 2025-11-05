@@ -176,7 +176,7 @@ class MLPredictor:
         
         # Remove inf and fill NaN
         combined = combined.replace([np.inf, -np.inf], np.nan)
-        combined = combined.fillna(method='ffill').fillna(0)
+        combined = combined.ffill().fillna(0)
         
         return combined
     
@@ -604,58 +604,100 @@ class MLPredictor:
                               data: Dict[str, Tuple[pd.DataFrame, pd.DataFrame]],
                               n_splits: int = 5,
                               train_size: int = 252,
-                              test_size: int = 63) -> pd.DataFrame:
+                              test_size: int = 63,
+                              buffer_size: int = 5) -> pd.DataFrame:
         """
-        Perform walk-forward validation
+        Perform walk-forward validation WITHOUT look-ahead bias
         
         Args:
             data: Dict {symbol: (ohlcv_df, features_df)}
             n_splits: Number of splits
             train_size: Training window size
             test_size: Test window size
+            buffer_size: Buffer between train and test to prevent leakage
             
         Returns:
             DataFrame with validation results
         """
         results = []
         
-        # Combine all data
-        all_data = []
-        for symbol, (ohlcv_df, features_df) in data.items():
-            X = self.prepare_features(ohlcv_df, features_df, symbol, '1h')
-            y = self.create_labels(ohlcv_df)
-            combined = pd.concat([X, y.rename('label')], axis=1)
-            all_data.append(combined)
-        
-        combined_data = pd.concat(all_data, axis=0).sort_index()
+        # Get lookforward period for buffer
+        lookforward = self.labeling_config.lookforward if hasattr(self, 'labeling_config') and self.labeling_config else 10
         
         # Walk-forward splits
         for i in range(n_splits):
             start_idx = i * test_size
-            train_end = start_idx + train_size
-            test_end = train_end + test_size
+            train_end = start_idx + train_size - lookforward  # ✅ Remove lookforward buffer
+            test_start = train_end + buffer_size  # ✅ Add buffer zone
+            test_end = test_start + test_size - lookforward
             
-            if test_end > len(combined_data):
-                break
+            # ✅ Prepare train and test data separately for EACH split
+            X_train_list = []
+            y_train_list = []
+            X_test_list = []
+            y_test_list = []
             
-            # Split data
-            train_data = combined_data.iloc[start_idx:train_end]
-            test_data = combined_data.iloc[train_end:test_end]
+            for symbol, (ohlcv_df, features_df) in data.items():
+                # Check if we have enough data
+                if test_end > len(ohlcv_df):
+                    continue
+                
+                # ✅ Split FIRST at raw data level
+                train_ohlcv = ohlcv_df.iloc[start_idx:train_end]
+                train_features = features_df.iloc[start_idx:train_end]
+                test_ohlcv = ohlcv_df.iloc[test_start:test_end]
+                test_features = features_df.iloc[test_start:test_end]
+                
+                # ✅ Prepare features separately
+                X_train = self.prepare_features(train_ohlcv, train_features, symbol, '1h')
+                X_test = self.prepare_features(test_ohlcv, test_features, symbol, '1h')
+                
+                # ✅ Create labels separately for train and test
+                y_train = self.create_labels(train_ohlcv)
+                y_test = self.create_labels(test_ohlcv)
+                
+                # Align features with labels
+                train_common_idx = X_train.index.intersection(y_train.index)
+                test_common_idx = X_test.index.intersection(y_test.index)
+                
+                if len(train_common_idx) > 0:
+                    X_train_list.append(X_train.loc[train_common_idx])
+                    y_train_list.append(y_train.loc[train_common_idx])
+                
+                if len(test_common_idx) > 0:
+                    X_test_list.append(X_test.loc[test_common_idx])
+                    y_test_list.append(y_test.loc[test_common_idx])
             
-            # Separate features and labels
-            X_train = train_data.drop('label', axis=1)
-            y_train = train_data['label']
-            X_test = test_data.drop('label', axis=1)
-            y_test = test_data['label']
+            # Check if we have data for this split
+            if not X_train_list or not X_test_list:
+                logger.warning(f"Split {i}: Insufficient data, skipping")
+                continue
             
-            # Select features
+            # ✅ Combine data AFTER splitting (not before)
+            X_train = pd.concat(X_train_list, axis=0)
+            y_train = pd.concat(y_train_list, axis=0)
+            X_test = pd.concat(X_test_list, axis=0)
+            y_test = pd.concat(y_test_list, axis=0)
+            
+            # ✅ Select features (use existing selection or re-select per fold)
             if self.selected_features:
+                # Use pre-selected features
                 X_train = X_train[self.selected_features]
                 X_test = X_test[self.selected_features]
+            else:
+                # Optionally re-select features for this fold only (more realistic)
+                from sklearn.feature_selection import SelectKBest, f_classif
+                selector = SelectKBest(f_classif, k=min(50, X_train.shape[1]))
+                selector.fit(X_train, y_train)
+                selected_features = X_train.columns[selector.get_support()].tolist()
+                X_train = X_train[selected_features]
+                X_test = X_test[selected_features]
             
-            # Scale
-            X_train_scaled = self.scaler.fit_transform(X_train)
-            X_test_scaled = self.scaler.transform(X_test)
+            # ✅ Fit scaler ONLY on training data for this fold
+            from sklearn.preprocessing import StandardScaler
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_test_scaled = scaler.transform(X_test)  # Use same scaler, don't refit
             
             # Train model
             if self.model_type == 'xgboost' and HAS_XGBOOST:
@@ -671,10 +713,13 @@ class MLPredictor:
             # Calculate metrics
             split_results = {
                 'split': i,
-                'train_start': train_data.index[0],
-                'train_end': train_data.index[-1],
-                'test_start': test_data.index[0],
-                'test_end': test_data.index[-1],
+                'train_start': X_train.index[0],
+                'train_end': X_train.index[-1],
+                'test_start': X_test.index[0],
+                'test_end': X_test.index[-1],
+                'train_samples': len(X_train),
+                'test_samples': len(X_test),
+                'buffer_periods': buffer_size,
                 'accuracy': accuracy_score(y_test, y_pred),
                 'f1': f1_score(y_test, y_pred, average='weighted'),
                 'precision': precision_score(y_test, y_pred, average='weighted'),

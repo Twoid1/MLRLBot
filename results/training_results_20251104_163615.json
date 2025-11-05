@@ -1,0 +1,40 @@
+{
+  "start_time": "2025-11-04T15:46:12.799426",
+  "end_time": "2025-11-04T16:36:15.848297",
+  "speedup_metrics": {},
+  "ml_results": {
+    "train_samples": 158952,
+    "features_used": 50,
+    "model_type": "xgboost",
+    "best_params": {
+      "n_estimators": 100,
+      "max_depth": 5,
+      "learning_rate": 0.1,
+      "subsample": 0.8,
+      "colsample_bytree": 0.8,
+      "gamma": 0.1,
+      "min_child_weight": 1,
+      "reg_alpha": 0.1,
+      "reg_lambda": 1.0
+    },
+    "used_sample_weights": false,
+    "validation": {
+      "accuracy": 0.6356252837612874,
+      "precision": 0.6229357611305679,
+      "recall": 0.6356252837612874,
+      "f1": 0.624662156896417,
+      "down_precision": 0.6530881440099318,
+      "down_recall": 0.76,
+      "down_f1": 0.7024996870174853,
+      "flat_precision": 0.0,
+      "flat_recall": 0.0,
+      "flat_f1": 0.0,
+      "up_precision": 0.6031723143475126,
+      "up_recall": 0.493220139134536,
+      "up_f1": 0.5426829268292683
+    },
+    "train_accuracy": 0.6573053500427802,
+    "train_f1": 0.6484508069881746
+  },
+  "rl_results": null
+}

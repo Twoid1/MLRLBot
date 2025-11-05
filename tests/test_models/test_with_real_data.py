@@ -63,7 +63,7 @@ def test_with_real_data():
     if not gaps.empty:
         print(f"\n{Fore.YELLOW}Found {len(gaps)} gaps that need updating:{Style.RESET_ALL}")
         for _, gap in gaps.iterrows():
-            print(f"  • {gap['symbol']} {gap['timeframe']}: "
+            print(f"   {gap['symbol']} {gap['timeframe']}: "
                   f"{gap['candles_missing']} candles missing "
                   f"({gap['gap_hours']:.1f} hours)")
     else:

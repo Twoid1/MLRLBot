@@ -146,7 +146,7 @@ class TripleBarrierLabeler:
         """
         # Calculate volatility
         returns = prices.pct_change()
-        vol = returns.ewm(span=vol_window).std()
+        vol = returns.ewm(span=vol_window, adjust=False).std()
         
         # Create events DataFrame
         events = pd.DataFrame(index=t_events, columns=['t1', 'trgt', 'side'])
@@ -655,16 +655,17 @@ class LabelingPipeline:
             labels = self.trend_labeler.label_data(df)
         
         elif method == 'simple_returns':
-            # Simple return-based labeling
             lookforward = kwargs.get('lookforward', self.config.lookforward)
             threshold = kwargs.get('threshold', self.config.threshold)
             
             prices = df['close']
             returns = prices.pct_change(lookforward).shift(-lookforward)
-            labels = pd.Series(0, index=df.index)
-            labels[returns > threshold] = 1  # Up
-            labels[returns < -threshold] = -1  # Down
-            labels = labels.fillna(0).astype(int)
+            
+            # Create labels
+            labels = pd.Series(np.nan, index=df.index, dtype=float)  # ✅ Start with NaN
+            labels[returns > threshold] = 1
+            labels[returns < -threshold] = -1
+            labels[(returns >= -threshold) & (returns <= threshold)] = 0
         
         else:
             raise ValueError(f"Unknown labeling method: {method}")
