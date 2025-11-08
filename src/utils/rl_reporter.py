@@ -286,7 +286,7 @@ class RLTrainingReporter:
         
         if all_trades:
             unrealistic_trades = [t for t in all_trades 
-                                if t.get('pnl', 0) > initial_balance * 2]
+                                if t.get('pnl') is not None and t['pnl'] > initial_balance * 2]
             if unrealistic_trades:
                 checks['position_sizes'] = False
                 issues.append(f"{len(unrealistic_trades)} trades with unrealistic profits")

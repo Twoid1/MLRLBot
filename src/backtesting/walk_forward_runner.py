@@ -1,7 +1,7 @@
 """
-Walk-Forward Validation Runner
+Walk-Forward Validation Runner WITH EXPLAINABILITY
 Complete pipeline for running walk-forward validation with proper asset identification
-FIXED VERSION: Multi-timeframe support + proper numpy array handling
+⭐ NEW: Explainability to understand agent decisions on test data
 """
 
 import pandas as pd
@@ -13,6 +13,9 @@ import joblib
 import torch
 from typing import Dict, List, Optional, Tuple
 
+# ⭐ NEW: Import explainability
+from src.explainability_integration import ExplainableRL
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,8 +23,10 @@ logger = logging.getLogger(__name__)
 
 class WalkForwardRunner:
     """
-    Complete walk-forward validation runner
+    Complete walk-forward validation runner WITH EXPLAINABILITY
     Handles data loading, feature engineering with symbols, model loading, and backtesting
+    
+    ⭐ NEW: Can explain WHY the agent makes each decision during validation
     """
     
     def __init__(self, config: Optional[Dict] = None):
@@ -41,18 +46,26 @@ class WalkForwardRunner:
         self.feature_engineer = None
         self.feature_selector = None
         
+        # ⭐ NEW: Explainability
+        self.explainer = None
+        
     def _get_default_config(self) -> Dict:
         """Get default configuration"""
         return {
-            'data_path': 'data/raw/',  #  FIXED: Base path for all timeframes
+            'data_path': 'data/raw/',  # Base path for all timeframes
             'models_path': 'models/',
             'symbols': ['ETH_USDT', 'DOT_USDT', 'SOL_USDT', 'ADA_USDT', 'AVAX_USDT'],
-            'timeframes': ['1h', '4h', '1d'],  #  FIXED: Multiple timeframes
+            'timeframes': ['1h', '4h', '1d'],
             'test_start_date': '2025-01-01',
             'test_end_date': '2025-10-26',
             'initial_balance': 10000,
             'fee': 0.001,
             'slippage': 0.0005,
+            # ⭐ NEW: Explainability settings
+            'explain': False,
+            'explain_frequency': 100,
+            'verbose': False,
+            'explain_dir': 'logs/backtest_explanations'
         }
     
     def load_models(self):
@@ -138,7 +151,7 @@ class WalkForwardRunner:
     
     def load_multi_timeframe_data(self, symbol: str) -> Dict[str, pd.DataFrame]:
         """
-         FIXED: Load data for multiple timeframes
+        Load data for multiple timeframes
         
         Args:
             symbol: Symbol to load (e.g., 'ETH_USDT')
@@ -164,7 +177,7 @@ class WalkForwardRunner:
     
     def prepare_features(self, data_dict: Dict[str, pd.DataFrame], symbol: str) -> pd.DataFrame:
         """
-         FIXED: Calculate features with multi-timeframe data
+        Calculate features with multi-timeframe data
         
         Args:
             data_dict: Dictionary of {timeframe: DataFrame}
@@ -183,7 +196,7 @@ class WalkForwardRunner:
         if main_df is None:
             raise ValueError(f"No 1h data found for {symbol}")
         
-        #  FIXED: Calculate features with multi-timeframe support
+        # Calculate features with multi-timeframe support
         features = self.feature_engineer.calculate_all_features(
             df=main_df,
             symbol=symbol_formatted
@@ -210,7 +223,7 @@ class WalkForwardRunner:
     
     def get_ml_predictions(self, symbol: str, features: pd.DataFrame) -> np.ndarray:
         """
-         FIXED: Get ML model predictions (returns numpy array)
+        Get ML model predictions (returns numpy array)
         
         Args:
             symbol: Trading symbol (e.g., 'ETH_USDT')
@@ -263,7 +276,7 @@ class WalkForwardRunner:
                 return np.array([[0.33, 0.34, 0.33]] * len(features))
             
             logger.info(f" Generated {len(predictions)} predictions successfully")
-            return predictions  #  Returns numpy array
+            return predictions  # Returns numpy array
             
         except Exception as e:
             logger.error(f" Error getting ML predictions: {str(e)}")
@@ -273,7 +286,7 @@ class WalkForwardRunner:
     
     def run_backtest_for_symbol(self, symbol: str) -> Dict:
         """
-         FIXED: Run backtest with multi-timeframe data
+        Run backtest with multi-timeframe data
         
         Args:
             symbol: Symbol to backtest
@@ -283,10 +296,12 @@ class WalkForwardRunner:
         """
         logger.info(f"\n{'='*60}")
         logger.info(f"Running walk-forward validation for {symbol}")
+        if self.config.get('explain', False):
+            logger.info(" WITH EXPLAINABILITY")
         logger.info(f"{'='*60}")
         
         try:
-            # 1. ✅ FIXED: Load multi-timeframe data
+            # 1. Load multi-timeframe data
             data_dict = self.load_multi_timeframe_data(symbol)
             
             if '1h' not in data_dict:
@@ -298,7 +313,7 @@ class WalkForwardRunner:
             test_start = pd.to_datetime(self.config['test_start_date'])
             test_end = pd.to_datetime(self.config['test_end_date'])
             
-            # ✅ FIXED: Filter all timeframes
+            # Filter all timeframes
             filtered_data = {}
             for tf, df in data_dict.items():
                 filtered_data[tf] = df.loc[test_start:test_end]
@@ -308,14 +323,35 @@ class WalkForwardRunner:
             logger.info(f"Test period: {test_start} to {test_end}")
             logger.info(f"Test data points: {len(test_data)}")
             
-            # 3. ✅ FIXED: Calculate features with multi-timeframe data
+            # 3. Calculate features with multi-timeframe data
             features = self.prepare_features(filtered_data, symbol)
             
             # 4. Get ML predictions (returns numpy array)
             predictions = self.get_ml_predictions(symbol, features)
             
-            # 5. Run backtest
-            results = self._run_backtest(test_data, features, predictions, symbol)
+            # 5. Run backtest - USE RL AGENT IF AVAILABLE!
+            if self.rl_agent is not None:
+                logger.info(f" Using trained RL agent for backtest")
+                
+                # Filter features to only selected features
+                if hasattr(self.ml_model, 'selected_features') and self.ml_model.selected_features:
+                    selected_features = self.ml_model.selected_features
+                    features_filtered = features[selected_features].copy()
+                    logger.info(f"   Filtered to {len(selected_features)} selected features")
+                else:
+                    logger.warning("   No selected_features found, using all features")
+                    features_filtered = features
+                
+                # Use RL agent backtest
+                results = self._run_backtest_with_rl_agent(
+                    data=test_data,
+                    features=features_filtered,
+                    predictions=predictions,
+                    symbol=symbol
+                )
+            else:
+                logger.warning(" RL agent not loaded, falling back to ML-only backtest")
+                results = self._run_backtest(test_data, features, predictions, symbol)
             
             return results
             
@@ -328,19 +364,10 @@ class WalkForwardRunner:
     def _run_backtest(self, 
                      data: pd.DataFrame, 
                      features: pd.DataFrame, 
-                     predictions: np.ndarray,  # ✅ FIXED: Correct type
+                     predictions: np.ndarray,
                      symbol: str) -> Dict:
         """
-        ✅ FIXED: Run backtest with proper numpy array handling
-        
-        Args:
-            data: Price data (1h timeframe)
-            features: Features DataFrame
-            predictions: ML predictions numpy array (n_samples, 3)
-            symbol: Symbol name
-            
-        Returns:
-            Results dictionary
+        Run backtest with ML predictions only (fallback method)
         """
         # Initialize
         balance = self.config['initial_balance']
@@ -351,26 +378,22 @@ class WalkForwardRunner:
         trades = []
         equity_curve = []
         
-        # ✅ FIXED: Align only data and features (not predictions!)
+        # Align data
         common_index = data.index.intersection(features.index)
         data = data.loc[common_index]
         features = features.loc[common_index]
-        
-        # ✅ FIXED: Trim predictions array to match
         predictions = predictions[:len(common_index)]
         
         logger.info(f"Backtesting on {len(data)} periods...")
         
-        # ✅ FIXED: Use range instead of enumerate for cleaner indexing
         for i in range(len(data)):
             timestamp = data.index[i]
             current_price = data.iloc[i]['close']
             
-            # ✅ FIXED: Access predictions as numpy array
             if i < len(predictions):
-                pred_down = predictions[i, 0]   # Column 0 = down probability
-                pred_flat = predictions[i, 1]   # Column 1 = flat probability
-                pred_up = predictions[i, 2]     # Column 2 = up probability
+                pred_down = predictions[i, 0]
+                pred_flat = predictions[i, 1]
+                pred_up = predictions[i, 2]
             else:
                 pred_down, pred_flat, pred_up = 0.33, 0.34, 0.33
             
@@ -424,19 +447,15 @@ class WalkForwardRunner:
         equity_df = pd.DataFrame(equity_curve).set_index('timestamp')
         trades_df = pd.DataFrame(trades)
         
-        # Calculate returns
         returns = equity_df['equity'].pct_change().dropna()
         total_return = (balance - self.config['initial_balance']) / self.config['initial_balance']
         
-        # Calculate Sharpe ratio (annualized for hourly data)
         sharpe_ratio = (returns.mean() / returns.std()) * np.sqrt(252) if len(returns) > 0 and returns.std() > 0 else 0
         
-        # Calculate max drawdown
         cummax = equity_df['equity'].cummax()
         drawdown = (equity_df['equity'] - cummax) / cummax
         max_drawdown = drawdown.min()
         
-        # Win rate
         if len(trades_df) > 0 and 'pnl' in trades_df.columns:
             winning_trades = len(trades_df[trades_df['pnl'] > 0])
             total_closed = len(trades_df[trades_df['pnl'].notna()])
@@ -461,6 +480,496 @@ class WalkForwardRunner:
         
         return results
     
+    def _run_backtest_with_rl_agent(self, 
+                                     data: pd.DataFrame, 
+                                     features: pd.DataFrame, 
+                                     predictions: np.ndarray,
+                                     symbol: str) -> Dict:
+        """
+        Run backtest using the ACTUAL trained RL agent WITH EXPLAINABILITY
+        
+        ⭐ MODIFIED: Now supports explainability to understand agent decisions on test data
+        
+        Args:
+            data: OHLCV price data (1h timeframe)
+            features: Filtered features DataFrame (only selected_features)
+            predictions: ML predictions numpy array (n_samples, 3)
+            symbol: Trading symbol
+            
+        Returns:
+            Results dictionary with backtest performance
+        """
+        # Initialize state
+        balance = self.config['initial_balance']
+        initial_balance = self.config['initial_balance']
+        position = 0
+        entry_price = 0
+        trades = []
+        equity_curve = []
+        
+        # Align indices
+        common_idx = data.index.intersection(features.index)
+        data = data.loc[common_idx]
+        features = features.loc[common_idx]
+        predictions = predictions[:len(common_idx)]
+        
+        logger.info(f"   Backtesting {symbol} using RL agent...")
+        logger.info(f"   Data points: {len(data)}")
+        logger.info(f"   Features: {features.shape[1]}")
+        
+        # Set agent to evaluation mode (no exploration)
+        self.rl_agent.epsilon = 0.0  # Pure exploitation
+        
+        # ⭐ NEW: Setup explainability if enabled
+        if self.config.get('explain', False):
+            logger.info("   Setting up explainability for backtest...")
+            
+            # Get feature names (try to get from environment, or create generic)
+            state_feature_names = self._get_feature_names(features)
+            
+            # Create explainer
+            self.explainer = ExplainableRL(
+                agent=self.rl_agent,
+                state_feature_names=state_feature_names,
+                action_names=['Hold', 'Buy', 'Sell'],
+                explain_frequency=self.config.get('explain_frequency', 100),
+                verbose=self.config.get('verbose', False),
+                save_dir=f"{self.config.get('explain_dir', 'logs/backtest_explanations')}/{symbol}"
+            )
+            
+            logger.info(f"    Explainability enabled")
+            logger.info(f"     Tracking {len(state_feature_names)} features")
+            logger.info(f"     Explain frequency: every {self.config.get('explain_frequency', 100)} steps")
+            logger.info(f"     Verbose: {'ON' if self.config.get('verbose', False) else 'OFF'}")
+        
+        action_counts = {'HOLD': 0, 'BUY': 0, 'SELL': 0}
+
+        realized_pnl = 0.0
+        total_fees_paid = 0.0
+        position_opened_step = 0
+        
+        for i in range(len(data)):
+            timestamp = data.index[i]
+            
+            # ✅ CRITICAL FIX: Use OPEN price, not CLOSE!
+            current_price = data.iloc[i]['open']  # NOT close!
+            
+            # Get ML predictions
+            if i < len(predictions):
+                pred_probs = predictions[i]
+            else:
+                pred_probs = np.array([0.33, 0.34, 0.33])
+            
+            # Calculate current equity
+            if position > 0:
+                equity = balance + (position * current_price)
+            else:
+                equity = balance
+            equity_curve.append({'timestamp': timestamp, 'equity': equity})
+            
+            # ✅ FIXED: Construct state with all required parameters
+            state = self._construct_state(
+                i=i,
+                data=data,
+                features=features,
+                current_price=current_price,
+                balance=balance,
+                equity=equity,
+                position=position,
+                entry_price=entry_price,
+                initial_balance=initial_balance,
+                symbol=symbol,
+                realized_pnl=realized_pnl,              # ✅ ADD
+                total_fees_paid=total_fees_paid,        # ✅ ADD
+                position_opened_step=position_opened_step  # ✅ ADD
+            )
+            
+            # Get action (with or without explainability)
+            if self.explainer:
+                context = {
+                    'symbol': symbol,
+                    'timestamp': timestamp,
+                    'price': current_price,
+                    'position': position,
+                    'position_type': 'LONG' if position > 0 else 'FLAT',
+                    'balance': balance,
+                    'equity': equity,
+                    'ml_prediction': pred_probs,
+                    'step': i
+                }
+                action, explanation = self.explainer.act_with_explanation(
+                    state=state,
+                    context=context,
+                    training=False
+                )
+            else:
+                state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.rl_agent.device)
+                with torch.no_grad():
+                    q_values = self.rl_agent.q_network(state_tensor)
+                    action = q_values.argmax().item()
+            
+            # Execute action
+            if action == 1 and position == 0:  # BUY
+                # Use 95% of available balance
+                position = (balance * 0.95) / current_price
+                cost = position * current_price
+                fee = cost * self.config['fee']
+                total_fees_paid += fee  # ✅ TRACK FEES
+                balance -= (cost + fee)
+                entry_price = current_price
+                position_opened_step = i  # ✅ TRACK WHEN OPENED
+                action_counts['BUY'] += 1
+                
+                trades.append({
+                    'timestamp': timestamp,
+                    'type': 'BUY',
+                    'price': current_price,
+                    'size': position,
+                    'balance': balance
+                })
+                
+            elif action == 2 and position > 0:  # SELL
+                proceeds = position * current_price
+                fee = proceeds * self.config['fee']
+                total_fees_paid += fee  # ✅ TRACK FEES
+                net_proceeds = proceeds - fee
+                pnl = (current_price - entry_price) * position
+                realized_pnl += pnl  # ✅ TRACK REALIZED PNL
+                balance += net_proceeds
+                action_counts['SELL'] += 1
+                
+                trades.append({
+                    'timestamp': timestamp,
+                    'type': 'SELL',
+                    'price': current_price,
+                    'size': position,
+                    'balance': balance,
+                    'pnl': pnl
+                })
+                
+                position = 0
+                entry_price = 0
+                position_opened_step = 0  # ✅ RESET
+            
+            else:
+                action_counts['HOLD'] += 1
+        
+        # Close any remaining position
+        if position > 0:
+            final_price = data.iloc[-1]['open']  # ✅ Use open, not close
+            proceeds = position * final_price
+            fee = proceeds * self.config['fee']
+            total_fees_paid += fee
+            net_proceeds = proceeds - fee
+            pnl = (final_price - entry_price) * position
+            realized_pnl += pnl
+            balance += net_proceeds
+            
+            trades.append({
+                'timestamp': data.index[-1],
+                'type': 'SELL',
+                'price': final_price,
+                'size': position,
+                'balance': balance,
+                'pnl': pnl
+            })
+        
+        # ⭐ NEW: Generate explainability report if enabled
+        if self.explainer:
+            logger.info("\n   " + "="*60)
+            logger.info(f"   GENERATING EXPLAINABILITY REPORT FOR {symbol}")
+            logger.info("   " + "="*60)
+            
+            # Generate final report
+            report = self.explainer.generate_final_report()
+            print("\n" + report)
+            
+            # Save decision history
+            self.explainer.save_decision_history()
+            logger.info(f"    Saved decision history to {self.explainer.save_dir}")
+        
+        # Calculate metrics
+        equity_df = pd.DataFrame(equity_curve).set_index('timestamp')
+        trades_df = pd.DataFrame(trades) if trades else pd.DataFrame()
+        
+        # Calculate performance metrics
+        returns = equity_df['equity'].pct_change().dropna()
+        total_return = (balance - initial_balance) / initial_balance
+        
+        sharpe_ratio = (returns.mean() / returns.std()) * np.sqrt(252 * 24) if len(returns) > 0 and returns.std() > 0 else 0
+        
+        cummax = equity_df['equity'].cummax()
+        drawdown = (equity_df['equity'] - cummax) / cummax
+        max_drawdown = drawdown.min()
+        
+        if len(trades_df) > 0 and 'pnl' in trades_df.columns:
+            winning_trades = len(trades_df[trades_df['pnl'] > 0])
+            total_closed = len(trades_df[trades_df['pnl'].notna()])
+            win_rate = winning_trades / total_closed if total_closed > 0 else 0
+        else:
+            win_rate = 0
+        
+        # Log action distribution
+        total_actions = sum(action_counts.values())
+        logger.info(f"   Action Distribution:")
+        logger.info(f"     HOLD:  {action_counts['HOLD']:5d} ({action_counts['HOLD']/total_actions*100:5.1f}%)")
+        logger.info(f"     BUY:   {action_counts['BUY']:5d} ({action_counts['BUY']/total_actions*100:5.1f}%)")
+        logger.info(f"     SELL:  {action_counts['SELL']:5d} ({action_counts['SELL']/total_actions*100:5.1f}%)")
+        
+        results = {
+            'symbol': symbol,
+            'initial_balance': initial_balance,
+            'final_balance': balance,
+            'total_return': total_return,
+            'total_return_pct': total_return * 100,
+            'sharpe_ratio': sharpe_ratio,
+            'max_drawdown': max_drawdown,
+            'max_drawdown_pct': max_drawdown * 100,
+            'num_trades': len(trades_df),
+            'win_rate': win_rate,
+            'equity_curve': equity_df,
+            'trades': trades_df,
+            'action_distribution': action_counts
+        }
+        
+        logger.info(f"   Results:")
+        logger.info(f"     Total Return: {total_return*100:.2f}%")
+        logger.info(f"     Sharpe Ratio: {sharpe_ratio:.2f}")
+        logger.info(f"     Max Drawdown: {max_drawdown*100:.2f}%")
+        logger.info(f"     Trades: {len(trades_df)}")
+        logger.info(f"     Win Rate: {win_rate*100:.1f}%")
+        
+        return results
+    
+    def _get_feature_names(self, features: pd.DataFrame) -> List[str]:
+        """
+        Get feature names for explainability
+        
+        Args:
+            features: Features DataFrame
+            
+        Returns:
+            List of 81 feature names
+        """
+        feature_names = []
+        
+        # Market features (50)
+        if hasattr(self.ml_model, 'selected_features') and self.ml_model.selected_features:
+            market_features = self.ml_model.selected_features[:50]
+            if len(market_features) < 50:
+                market_features = list(market_features) + [f'market_{i}' for i in range(len(market_features), 50)]
+            feature_names.extend(market_features)
+        else:
+            feature_names.extend([f'market_feature_{i}' for i in range(50)])
+        
+        # Technical features (10)
+        feature_names.extend([
+            'recent_open_norm', 'recent_high_norm', 'recent_low_norm', 'recent_close_norm',
+            'prev_close_norm', 'candle_body_ratio', 'candle_range_ratio',
+            'volume_ratio', 'volume_ratio_capped', 'price_direction'
+        ])
+        
+        # Account features (5)
+        feature_names.extend([
+            'balance_normalized', 'portfolio_value_normalized',
+            'realized_pnl_normalized', 'unrealized_pnl_normalized', 'fees_normalized'
+        ])
+        
+        # Position features (5)
+        feature_names.extend([
+            'position_type', 'entry_price_normalized', 'position_size_normalized',
+            'position_pnl_normalized', 'position_duration_normalized'
+        ])
+        
+        # Asset encoding (5)
+        feature_names.extend(['asset_eth', 'asset_dot', 'asset_sol', 'asset_ada', 'asset_avax'])
+        
+        # Timeframe encoding (6)
+        feature_names.extend(['tf_1m', 'tf_5m', 'tf_15m', 'tf_1h', 'tf_4h', 'tf_1d'])
+        
+        return feature_names
+    
+    def _construct_state(self, i: int, data: pd.DataFrame, features: pd.DataFrame,
+                        current_price: float, balance: float, equity: float,
+                        position: float, entry_price: float, initial_balance: float,
+                        symbol: str, realized_pnl: float = 0.0, 
+                        total_fees_paid: float = 0.0,
+                        position_opened_step: int = 0) -> np.ndarray:
+        """
+        Construct 81-dimensional state vector matching training environment
+        
+        ✅ FIXED: All issues corrected
+        - Look-ahead bias removed (uses previous bar's OHLC, normalized by current open)
+        - Correct asset encoding (ETH=0, SOL=1, DOT=2, AVAX=3, ADA=4)
+        - Proper account features (realized_pnl, total_fees_paid)
+        - Correct position duration tracking
+        
+        Args:
+            i: Current timestep index
+            data: OHLCV DataFrame
+            features: Features DataFrame (filtered to selected features only)
+            current_price: Current bar's OPEN price (not close!)
+            balance: Current cash balance
+            equity: Total portfolio value
+            position: Current position size (in coins)
+            entry_price: Entry price if in position
+            initial_balance: Starting capital
+            symbol: Trading symbol (e.g., 'ETH_USDT')
+            realized_pnl: Cumulative realized PnL
+            total_fees_paid: Cumulative fees paid
+            position_opened_step: Step when current position was opened
+            
+        Returns:
+            81-dimensional state vector
+        """
+        
+        # ========================================================================
+        # PART 1: Market features (50 dims)
+        # ========================================================================
+        current_features = features.iloc[i].values[:50]
+        if len(current_features) < 50:
+            padding = np.zeros(50 - len(current_features))
+            current_features = np.concatenate([current_features, padding])
+        
+        # ========================================================================
+        # PART 2: Technical features (10 dims)
+        # ✅ FIXED: Use PREVIOUS bar's OHLC, normalized by CURRENT bar's OPEN
+        # ========================================================================
+        if i > 0:
+            # Get current bar's OPEN (known at bar start - no look-ahead!)
+            current_open = data.iloc[i]['open']
+            
+            # Use PREVIOUS bar's OHLC (last completed bar)
+            prev_open = data.iloc[i-1]['open']
+            prev_high = data.iloc[i-1]['high']
+            prev_low = data.iloc[i-1]['low']
+            prev_close = data.iloc[i-1]['close']
+            
+            # Normalize by current bar's OPEN
+            recent_open = prev_open / current_open
+            recent_high = prev_high / current_open
+            recent_low = prev_low / current_open
+            recent_close = prev_close / current_open
+            
+            # Previous to previous close (for price direction feature)
+            if i > 1:
+                prev_prev_close = data.iloc[i-2]['close'] / current_open
+            else:
+                prev_prev_close = recent_close
+            
+            # Volume features (use previous bar's volume)
+            recent_volume = data.iloc[i-1]['volume']
+            if i >= 20:
+                avg_volume = data.iloc[max(0, i-20):i]['volume'].mean()
+            else:
+                avg_volume = data.iloc[:i]['volume'].mean()
+            
+            volume_ratio = recent_volume / avg_volume if avg_volume > 0 else 1.0
+            
+            technical_features = np.array([
+                recent_open,                                          # 0: Recent open normalized
+                recent_high,                                          # 1: Recent high normalized
+                recent_low,                                           # 2: Recent low normalized
+                recent_close,                                         # 3: Recent close normalized
+                prev_prev_close,                                      # 4: Previous close normalized
+                (recent_close - recent_open) / (recent_open + 1e-10), # 5: Candle body ratio
+                (recent_high - recent_low) / (recent_close + 1e-10),  # 6: Candle range ratio
+                volume_ratio,                                         # 7: Volume ratio
+                min(volume_ratio, 5.0),                              # 8: Volume ratio capped
+                float(recent_close > prev_prev_close)                # 9: Price direction
+            ])
+        else:
+            technical_features = np.zeros(10)
+        
+        # ========================================================================
+        # PART 3: Account features (5 dims)
+        # ✅ FIXED: Use realized_pnl (not total PnL) and actual fees
+        # ========================================================================
+        # Calculate unrealized PnL
+        if position > 0:
+            unrealized_pnl = (current_price - entry_price) * position
+        else:
+            unrealized_pnl = 0.0
+        
+        account_info = np.array([
+            balance / initial_balance,              # 0: Balance normalized
+            equity / initial_balance,               # 1: Portfolio value normalized
+            realized_pnl / initial_balance,         # 2: Realized PnL normalized ✅ FIXED
+            unrealized_pnl / initial_balance,       # 3: Unrealized PnL normalized
+            total_fees_paid / initial_balance       # 4: Total fees normalized ✅ FIXED
+        ])
+        
+        # ========================================================================
+        # PART 4: Position features (5 dims)
+        # ✅ FIXED: Use actual position duration, not binary flag
+        # ========================================================================
+        # Calculate position duration
+        if position > 0:
+            position_duration = i - position_opened_step
+        else:
+            position_duration = 0
+        
+        position_info = np.array([
+            float(1.0 if position > 0 else 0.0),                    # 0: Position type (0=FLAT, 1=LONG)
+            (entry_price / current_price) if entry_price > 0 else 0.0, # 1: Entry price normalized
+            (position * current_price / initial_balance) if position > 0 else 0.0, # 2: Position size normalized
+            (unrealized_pnl / initial_balance) if position > 0 else 0.0, # 3: Position PnL normalized
+            position_duration / 100                                 # 4: Position duration normalized ✅ FIXED
+        ])
+        
+        # ========================================================================
+        # PART 5: Asset encoding (5 dims)
+        # ✅ FIXED: Correct encoding matching training
+        # ========================================================================
+        # Define asset mappings - MUST MATCH training_env.py exactly!
+        asset_map = {
+            # All possible formats for each asset
+            'ETH_USDT': 0, 'ETH/USDT': 0, 'ETH/USD': 0, 'ETHUSD': 0,
+            'SOL_USDT': 1, 'SOL/USDT': 1, 'SOL/USD': 1, 'SOLUSD': 1,
+            'DOT_USDT': 2, 'DOT/USDT': 2, 'DOT/USD': 2, 'DOTUSD': 2,
+            'AVAX_USDT': 3, 'AVAX/USDT': 3, 'AVAX/USD': 3, 'AVAXUSD': 3,
+            'ADA_USDT': 4, 'ADA/USDT': 4, 'ADA/USD': 4, 'ADAUSD': 4
+        }
+        
+        asset_encoding = np.zeros(5, dtype=np.float32)
+        
+        if symbol in asset_map:
+            asset_encoding[asset_map[symbol]] = 1.0
+        else:
+            logger.warning(f"⚠️ Unknown asset '{symbol}' - using default encoding")
+        
+        # ========================================================================
+        # PART 6: Timeframe encoding (6 dims)
+        # ========================================================================
+        timeframe_encoding = np.zeros(6, dtype=np.float32)
+        timeframe_encoding[3] = 1.0  # 1h timeframe (index 3)
+        
+        # ========================================================================
+        # COMBINE ALL PARTS
+        # ========================================================================
+        state = np.concatenate([
+            current_features,      # 50 dimensions
+            technical_features,    # 10 dimensions
+            account_info,          # 5 dimensions
+            position_info,         # 5 dimensions
+            asset_encoding,        # 5 dimensions
+            timeframe_encoding     # 6 dimensions
+        ])  # Total: 81 dimensions
+        
+        # ========================================================================
+        # CLEAN AND VALIDATE
+        # ========================================================================
+        # Replace NaN/Inf with 0
+        state = np.nan_to_num(state, nan=0.0, posinf=0.0, neginf=0.0)
+        
+        # Clip extreme values
+        state = np.clip(state, -10, 10)
+        
+        # Validate shape
+        assert len(state) == 81, f"State must be 81 dims, got {len(state)}"
+        
+        return state.astype(np.float32)
+    
     def run_all_symbols(self) -> Dict:
         """
         Run walk-forward validation on all symbols
@@ -470,6 +979,8 @@ class WalkForwardRunner:
         """
         logger.info("\n" + "="*80)
         logger.info("STARTING WALK-FORWARD VALIDATION")
+        if self.config.get('explain', False):
+            logger.info(" WITH EXPLAINABILITY")
         logger.info("="*80)
         
         # Load models first
@@ -526,6 +1037,9 @@ class WalkForwardRunner:
             logger.info(f"Average Return: {avg_return:.2f}%")
             logger.info(f"Average Sharpe: {avg_sharpe:.2f}")
             logger.info(f"Successful on: {len([r for r in total_returns if r > 0])}/{len(total_returns)} assets")
+            
+            if self.config.get('explain', False):
+                logger.info(f"\n Explainability reports saved to: {self.config.get('explain_dir', 'logs/backtest_explanations')}")
         else:
             logger.error(" No successful results!")
             summary_df = pd.DataFrame()
@@ -540,20 +1054,34 @@ class WalkForwardRunner:
         }
 
 
-def run_walk_forward_validation():
+def run_walk_forward_validation(explain: bool = False,
+                                explain_frequency: int = 100,
+                                verbose: bool = False,
+                                explain_dir: str = 'logs/backtest_explanations'):
     """
-    Main function to run walk-forward validation
+    Main function to run walk-forward validation WITH EXPLAINABILITY
+    
+    Args:
+        explain: Enable explainability
+        explain_frequency: How often to print explanations
+        verbose: Explain every decision
+        explain_dir: Directory to save explanations
     """
     config = {
-        'data_path': 'data/raw/',  # ✅ FIXED: Base path
+        'data_path': 'data/raw/',
         'models_path': 'models/',
         'symbols': ['ETH_USDT', 'DOT_USDT', 'SOL_USDT', 'ADA_USDT', 'AVAX_USDT'],
-        'timeframes': ['1h', '4h', '1d'],  # ✅ FIXED: Multiple timeframes
+        'timeframes': ['1h', '4h', '1d'],
         'test_start_date': '2025-01-01',
         'test_end_date': '2025-10-26',
         'initial_balance': 10000,
         'fee': 0.001,
         'slippage': 0.0005,
+        # ⭐ NEW: Explainability settings
+        'explain': explain,
+        'explain_frequency': explain_frequency,
+        'verbose': verbose,
+        'explain_dir': explain_dir
     }
     
     runner = WalkForwardRunner(config)
@@ -563,4 +1091,13 @@ def run_walk_forward_validation():
 
 
 if __name__ == '__main__':
-    run_walk_forward_validation()
+    # Example usage:
+    # Without explainability (standard)
+    # results = run_walk_forward_validation()
+    
+    # With explainability (to understand agent decisions)
+    results = run_walk_forward_validation(
+        explain=True,
+        explain_frequency=100,
+        verbose=False
+    )

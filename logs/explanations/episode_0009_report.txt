@@ -1,0 +1,56 @@
+EPISODE 9 POLICY REPORT
+================================================================================
+
+================================================================================
+RL AGENT POLICY ANALYSIS REPORT
+================================================================================
+Generated: 2025-11-07 13:50:29
+Total Decisions Analyzed: 2200
+
+1. ACTION DISTRIBUTION
+--------------------------------------------------------------------------------
+  Hold      :  935 times ( 93.5%) - Avg Confidence: -0.027
+  Buy       :   10 times (  1.0%) - Avg Confidence: -0.091
+  Sell      :   55 times (  5.5%) - Avg Confidence: -0.014
+
+2. TOP INFLUENTIAL FEATURES
+--------------------------------------------------------------------------------
+   1. prev_close_norm                          - Importance: 0.159 (appeared 1868 times)
+   2. asset_btc                                - Importance: 0.145 (appeared 468 times)
+   3. chaikin_osc                              - Importance: 0.128 (appeared 331 times)
+   4. rsi_14                                   - Importance: 0.126 (appeared 327 times)
+   5. recent_high_norm                         - Importance: 0.123 (appeared 1682 times)
+   6. cci                                      - Importance: 0.120 (appeared 340 times)
+   7. recent_close_norm                        - Importance: 0.116 (appeared 1771 times)
+   8. rsi_7                                    - Importance: 0.113 (appeared 332 times)
+   9. portfolio_value_normalized               - Importance: 0.111 (appeared 1691 times)
+  10. ultimate_oscillator                      - Importance: 0.110 (appeared 339 times)
+
+3. LEARNED POLICY RULES
+--------------------------------------------------------------------------------
+  • When Sell: key factors are volume_ratio (imp: 20.26%), asset_sol (imp: 14.47%), rsi_14 (imp: 12.47%)
+  • When Hold: key factors are prev_close_norm (imp: 18.79%), rsi_7 (imp: 15.26%), asset_dot (imp: 12.72%)
+  • When Buy: key factors are recent_open_norm (imp: 18.55%), ultimate_oscillator (imp: 16.47%), rsi_14 (imp: 12.58%)
+
+4. DECISION CONFIDENCE ANALYSIS
+--------------------------------------------------------------------------------
+  Average Confidence: -0.027
+  Confidence Std Dev: 0.039
+  Average Q-Spread: 0.157
+  Low Confidence Decisions: 983
+  Confidence Trend: increasing
+
+5. BEHAVIORAL PATTERNS
+--------------------------------------------------------------------------------
+  • Tends to stay in Hold for up to 119 consecutive steps
+  • Most common transition: Hold -> Hold (875 times)
+
+6. RISK BEHAVIOR
+--------------------------------------------------------------------------------
+  Risk Profile: BALANCED
+  High Risk Decisions: 0
+  Medium Risk Decisions: 973
+  Low Risk Decisions: 27
+  Total Warnings: 973
+
+================================================================================

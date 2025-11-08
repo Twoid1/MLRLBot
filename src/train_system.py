@@ -4,6 +4,7 @@ Unified training function that implements the exact workflow from project instru
 Trains both ML predictor and RL agent on multi-asset, multi-timeframe data
 
 ⚡ OPTIMIZED with pre-computation for 10-30x faster RL training!
+⭐ NEW: With explainability to understand agent decisions!
 """
 
 import pandas as pd
@@ -26,6 +27,9 @@ from src.models.dqn_agent import DQNAgent, DQNConfig
 from src.environment.trading_env import TradingEnvironment
 from src.utils.logger import setup_logger
 
+# ⭐ NEW: Explainability import
+from src.explainability_integration import ExplainableRL
+
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +40,7 @@ class SystemTrainer:
     Implements the complete training pipeline from project documentation
     
     ⚡ OPTIMIZED: Pre-computes observations for 10-30x faster training!
+    ⭐ NEW: With explainability support!
     """
     
     def __init__(self, config_path: Optional[str] = None):
@@ -67,13 +72,16 @@ class SystemTrainer:
         self.ml_predictor = None
         self.rl_agent = None
         
+        # ⭐ NEW: Explainability
+        self.explainer = None
+        
         # Training results
         self.training_results = {
             'ml_results': None,
             'rl_results': None,
             'start_time': None,
             'end_time': None,
-            'speedup_metrics': {}  # ← NEW: Track speedup metrics
+            'speedup_metrics': {}
         }
     
     def _load_config(self, config_path: Optional[str]) -> Dict:
@@ -89,11 +97,11 @@ class SystemTrainer:
             ],
             
             # Multi-timeframe configuration (5+ timeframes)
-            'timeframes': ['1h', '4h', '1d'],  # Can expand to ['1m', '5m', '15m', '1h', '4h', '1d']
+            'timeframes': ['1h', '4h', '1d'],
             
             # Data settings
             'start_date': '2021-01-01',
-            'end_date': '2025-01-01',  # Training ends at beginning of 2025
+            'end_date': '2025-01-01',
             'train_split': 0.8,
             'validation_split': 0.1,
             
@@ -102,45 +110,53 @@ class SystemTrainer:
             'feature_selection': True,
             
             # ML settings
-            'ml_model_type': 'xgboost',  # or 'lightgbm'
-            'optimize_ml_params': False,  # Set True for production
-            'use_sample_weights': False,  # Disabled: causes size mismatch with multi-asset training
+            'ml_model_type': 'xgboost',
+            'optimize_ml_params': False,
+            'use_sample_weights': False,
             'walk_forward_splits': 5,
             
             # Labeling settings
             'labeling_method': 'triple_barrier',
             'lookforward': 10,
-            'pt_sl': [1.5, 1.0],  # Profit-take / Stop-loss multipliers
+            'pt_sl': [1.5, 1.0],
             
             # RL settings - ⚡ OPTIMIZED
-            'rl_episodes': 1000,  # Set to 1000 for proper training
+            'rl_episodes': 1000,
             'rl_hidden_dims': [256, 256, 128],
-            'rl_batch_size': 256,  # ← INCREASED from 64 for better GPU utilization
+            'rl_batch_size': 256,
             'rl_learning_rate': 0.0001,
             'rl_gamma': 0.99,
             'rl_epsilon_start': 1.0,
             'rl_epsilon_end': 0.01,
             'rl_epsilon_decay': 0.995,
-            'rl_memory_size': 50000,  # ← INCREASED from 10000
-            'rl_target_update': 500,  # ← Less frequent updates
-            'rl_update_every': 10,  # ← INCREASED from 4 (train less frequently)
+            'rl_memory_size': 50000,
+            'rl_target_update': 500,
+            'rl_update_every': 10,
             'use_double_dqn': True,
             'use_dueling_dqn': True,
             'use_prioritized_replay': True,
             
             # Environment settings
             'initial_balance': 10000,
-            'fee_rate': 0.0026,  # Kraken fee
+            'fee_rate': 0.0026,
             'slippage': 0.001,
             'stop_loss': 0.05,
             'take_profit': 0.10,
-            'precompute_observations': True,  # ← NEW: Enable pre-computation!
+            'precompute_observations': True,
             
             # Saving
             'save_models': True,
             'models_dir': 'models/',
             'results_dir': 'results/',
-            'save_interval': 100  # Save checkpoint every N episodes
+            'save_interval': 100,
+            
+            # ⭐ NEW: Explainability settings
+            'explainability': {
+                'enabled': False,
+                'verbose': False,
+                'explain_frequency': 100,
+                'save_dir': 'logs/explanations'
+            }
         }
         
         if config_path and Path(config_path).exists():
@@ -163,6 +179,8 @@ class SystemTrainer:
         """
         logger.info("=" * 80)
         logger.info("STARTING HYBRID ML/RL SYSTEM TRAINING")
+        if self.config['explainability']['enabled']:
+            logger.info(" WITH EXPLAINABILITY")
         logger.info("=" * 80)
         
         self.training_results['start_time'] = datetime.now()
@@ -207,6 +225,8 @@ class SystemTrainer:
             # Step 5: Train RL agent
             if train_rl:
                 logger.info("\n[5/6] Training RL agent (DQN) with OPTIMIZATIONS...")
+                if self.config['explainability']['enabled']:
+                    logger.info("   With explainability enabled")
                 self._train_rl_agent(train_data, val_data, test_data)
                 logger.info(" RL agent trained successfully")
             else:
@@ -222,7 +242,7 @@ class SystemTrainer:
                        self.training_results['start_time']).total_seconds()
             
             logger.info("\n" + "=" * 80)
-            logger.info(f"TRAINING COMPLETE - Duration: {duration:.0f}s ({duration/60:.1f} min)")
+            logger.info(f" TRAINING COMPLETE - Duration: {duration:.0f}s ({duration/60:.1f} min)")
             logger.info("=" * 80)
             
             self._print_summary()
@@ -230,7 +250,7 @@ class SystemTrainer:
             return self.training_results
             
         except Exception as e:
-            logger.error(f"Training failed: {e}", exc_info=True)
+            logger.error(f" Training failed: {e}", exc_info=True)
             raise
     
     def _fetch_data(self) -> Dict[str, Dict[str, pd.DataFrame]]:
@@ -279,7 +299,7 @@ class SystemTrainer:
                         # Try to parse first column as timestamp
                         try:
                             df.index = pd.to_datetime(df.iloc[:, 0])
-                            df = df.iloc[:, 1:]  # Remove first column after using as index
+                            df = df.iloc[:, 1:]
                         except:
                             logger.warning(f"     Cannot parse timestamp for {symbol} {timeframe}")
                             continue
@@ -309,13 +329,8 @@ class SystemTrainer:
                     # Determine effective start date
                     if target_start and actual_start <= target_start:
                         effective_start = target_start
-                        logger.info(f"     Using target start: {effective_start.date()}")
                     else:
                         effective_start = actual_start
-                        if target_start:
-                            logger.info(f"     Data starts later ({actual_start.date()}), using actual start")
-                        else:
-                            logger.info(f"     Using actual start: {effective_start.date()}")
                     
                     # Determine effective end date
                     if target_end and actual_end >= target_end:
@@ -328,24 +343,22 @@ class SystemTrainer:
                     
                     # Minimum data requirement
                     if len(df) < 100:
-                        logger.warning(f"     Insufficient data: {len(df)} candles (need ≥100)")
+                        logger.warning(f"     Insufficient data: {len(df)} candles (need 100)")
                         continue
                     
                     # Remove any NaN values
                     df = df.dropna()
                     
                     if len(df) < 100:
-                        logger.warning(f"     After cleaning: {len(df)} candles (need ≥100)")
+                        logger.warning(f"     After cleaning: {len(df)} candles (need 100)")
                         continue
                     
                     # Store the data
                     data[symbol][timeframe] = df
-                    logger.info(f"      {len(df)} candles ({df.index[0].date()} to {df.index[-1].date()})")
+                    logger.info(f"       {len(df)} candles ({df.index[0].date()} to {df.index[-1].date()})")
                         
                 except Exception as e:
-                    logger.error(f"     Error: {str(e)}")
-                    import traceback
-                    logger.debug(traceback.format_exc())
+                    logger.error(f"      Error: {str(e)}")
         
         # Summary of loaded data
         logger.info("\n  Data Loading Summary:")
@@ -396,7 +409,7 @@ class SystemTrainer:
                 symbol_features = pd.concat([symbol_features, mtf_features], axis=1)
             
             features[symbol] = symbol_features
-            logger.info(f"      {len(symbol_features.columns)} features calculated")
+            logger.info(f"       {len(symbol_features.columns)} features calculated")
         
         return features
     
@@ -519,21 +532,13 @@ class SystemTrainer:
                 logger.info(f"    {i+1}. {row['feature']}: {row['importance']:.4f}")
 
     def _filter_features_to_selected(self, data_dict: Dict) -> Dict:
-        """
-        Filter features to only include selected features from ML training
-        
-        Args:
-            data_dict: Dict {asset: (ohlcv_df, features_df)}
-            
-        Returns:
-            Dict with filtered features {asset: (ohlcv_df, filtered_features_df)}
-        """
+        """Filter features to only include selected features from ML training"""
         if not hasattr(self, 'ml_predictor') or self.ml_predictor is None:
-            logger.warning(" No ML predictor found - using all features")
+            logger.warning("  No ML predictor found - using all features")
             return data_dict
         
         if not hasattr(self.ml_predictor, 'selected_features') or not self.ml_predictor.selected_features:
-            logger.warning(" No selected features found - using all features")
+            logger.warning("  No selected features found - using all features")
             return data_dict
         
         selected_features = self.ml_predictor.selected_features
@@ -542,14 +547,12 @@ class SystemTrainer:
         filtered_data = {}
         
         for asset, (ohlcv_df, features_df) in data_dict.items():
-            # Find which selected features exist in this dataframe
             available_features = [f for f in selected_features if f in features_df.columns]
             
             if len(available_features) < len(selected_features):
                 missing = len(selected_features) - len(available_features)
                 logger.warning(f"  {asset}: Only {len(available_features)}/{len(selected_features)} features available ({missing} missing)")
             
-            # Filter to only selected features
             filtered_features = features_df[available_features].copy()
             
             logger.info(f"  {asset}: {features_df.shape[1]} -> {filtered_features.shape[1]} features")
@@ -560,11 +563,15 @@ class SystemTrainer:
     
     def _train_rl_agent(self, train_data: Dict, val_data: Dict, test_data: Dict):
         """
-        Train RL agent with simple timing logs
+        Train RL agent with timing logs and OPTIONAL EXPLAINABILITY
+        
+        ⭐ NEW: Now supports explainability when enabled in config
         """
         
         logger.info("\n" + "="*80)
         logger.info("RL AGENT TRAINING (WITH TIMING)")
+        if self.config['explainability']['enabled']:
+            logger.info(" WITH EXPLAINABILITY")
         logger.info("="*80)
         
         # Setup
@@ -578,14 +585,13 @@ class SystemTrainer:
         t_start = time.time()
         logger.info("\n  Creating trading environment...")
         
-        from src.environment.trading_env import TradingEnvironment
         env = TradingEnvironment(
             df=ohlcv_train,
             initial_balance=self.config['initial_balance'],
             fee_rate=self.config['fee_rate'],
             slippage=self.config.get('slippage', 0.001),
             features_df=features_train,
-            selected_features=self.ml_predictor.selected_features if hasattr(self.ml_predictor, 'selected_features') else None,  # ← ADD THIS
+            selected_features=self.ml_predictor.selected_features if hasattr(self.ml_predictor, 'selected_features') else None,
             stop_loss=self.config.get('stop_loss', 0.05),
             take_profit=self.config.get('take_profit', 0.10),
             precompute_observations=self.config.get('precompute_observations', True)
@@ -598,8 +604,6 @@ class SystemTrainer:
         # ⏱️ TIME: Initialize agent
         t_start = time.time()
         logger.info("\n  Initializing RL agent...")
-        
-        from src.models.dqn_agent import DQNAgent, DQNConfig
         
         state_dim = env.observation_space_shape[0]
         action_dim = env.action_space_n
@@ -624,6 +628,31 @@ class SystemTrainer:
         logger.info(f" Agent initialized in {t_agent:.2f}s")
         logger.info(f"  Device: {self.rl_agent.device}")
         
+        # ⭐ NEW: Initialize explainer if enabled
+        if self.config['explainability']['enabled']:
+            logger.info("\n  Setting up explainability system...")
+            
+            # Get feature names
+            if hasattr(env, 'get_feature_names'):
+                state_feature_names = env.get_feature_names()
+            else:
+                state_feature_names = [f'feature_{i}' for i in range(state_dim)]
+            
+            self.explainer = ExplainableRL(
+                agent=self.rl_agent,
+                state_feature_names=state_feature_names,
+                action_names=['Hold', 'Buy', 'Sell'],
+                explain_frequency=self.config['explainability']['explain_frequency'],
+                verbose=self.config['explainability']['verbose'],
+                save_dir=self.config['explainability']['save_dir']
+            )
+            
+            logger.info(f" Explainability enabled")
+            logger.info(f"  Tracking {len(state_feature_names)} features")
+            logger.info(f"  Explain frequency: every {self.config['explainability']['explain_frequency']} steps")
+            logger.info(f"  Verbose mode: {'ON' if self.config['explainability']['verbose'] else 'OFF'}")
+            logger.info(f"  Save directory: {self.config['explainability']['save_dir']}")
+        
         # Training loop
         n_episodes = self.config['rl_episodes']
         logger.info(f"\n  Starting training for {n_episodes} episodes...\n")
@@ -638,6 +667,7 @@ class SystemTrainer:
             'step': 0,
             'remember': 0,
             'replay': 0,
+            'explain': 0,  # ⭐ NEW
             'other': 0
         }
         
@@ -660,16 +690,50 @@ class SystemTrainer:
             act_times = []
             remember_times = []
             replay_times = []
+            explain_times = []  # ⭐ NEW
             
             # Episode loop
             while not done and steps < len(ohlcv_train) - 100:
                 
-                # ACT
-                t = time.time()
-                action = self.rl_agent.act(state, training=True)
-                t_act = time.time() - t
-                act_times.append(t_act)
-                cumulative_times['act'] += t_act
+                # ⭐ EXPLAINABLE ACTION (if enabled)
+                if self.explainer:
+                    # Build context for explanation
+                    context = {
+                        'price': env.data.iloc[env.current_step]['close'] if hasattr(env, 'current_step') and hasattr(env, 'data') else 0,
+                        'position': env.position if hasattr(env, 'position') else 0,
+                        'balance': env.balance if hasattr(env, 'balance') else 0,
+                    }
+                    
+                    # Add ML prediction if available
+                    if hasattr(self, 'ml_predictor') and hasattr(self.ml_predictor, 'predict'):
+                        try:
+                            current_features = state[:50] if len(state) > 50 else state
+                            ml_pred = self.ml_predictor.predict(current_features.reshape(1, -1))
+                            context['ml_prediction'] = ml_pred[0] if len(ml_pred) > 0 else np.array([0.33, 0.34, 0.33])
+                        except:
+                            pass
+                    
+                    # ACT WITH EXPLANATION
+                    t = time.time()
+                    action, explanation = self.explainer.act_with_explanation(
+                        state=state,
+                        context=context,
+                        training=True
+                    )
+                    t_explain = time.time() - t
+                    explain_times.append(t_explain)
+                    cumulative_times['explain'] += t_explain
+                    
+                    # The act time is already included in explain time
+                    act_times.append(0)  # Placeholder
+                    cumulative_times['act'] += 0
+                else:
+                    # STANDARD ACT (no explanation)
+                    t = time.time()
+                    action = self.rl_agent.act(state, training=True)
+                    t_act = time.time() - t
+                    act_times.append(t_act)
+                    cumulative_times['act'] += t_act
                 
                 # STEP
                 t = time.time()
@@ -696,6 +760,14 @@ class SystemTrainer:
                 state = next_state
                 episode_reward += reward
                 steps += 1
+            
+            # ⭐ NEW: Episode summary for explainability
+            if self.explainer:
+                self.explainer.episode_summary(episode, episode_reward, steps)
+                
+                # Save periodic reports
+                if (episode + 1) % 10 == 0:
+                    self.explainer.save_episode_report(episode)
             
             # Update target network
             if episode % 50 == 0:
@@ -737,12 +809,25 @@ class SystemTrainer:
                 # Detailed timing breakdown
                 logger.info(f"    Episode Timing Breakdown (avg per step):")
                 logger.info(f"     env.reset():      {t_reset*1000:.2f}ms")
-                logger.info(f"     agent.act():      {np.mean(act_times)*1000:.2f}ms  ({len(act_times)} calls)")
+                if self.explainer:
+                    if explain_times:
+                        logger.info(f"     explainer.act():  {np.mean(explain_times)*1000:.2f}ms  ({len(explain_times)} calls)")
+                else:
+                    logger.info(f"     agent.act():      {np.mean(act_times)*1000:.2f}ms  ({len(act_times)} calls)")
                 logger.info(f"     env.step():       {np.mean(step_times)*1000:.2f}ms  ({len(step_times)} calls)")
                 logger.info(f"     agent.remember(): {np.mean(remember_times)*1000:.2f}ms  ({len(remember_times)} calls)")
                 if replay_times:
                     logger.info(f"     agent.replay():   {np.mean(replay_times)*1000:.2f}ms  ({len(replay_times)} calls)")
                 logger.info("")
+        
+        # ⭐ NEW: Generate explainability report if enabled
+        if self.explainer:
+            logger.info("\n" + "="*80)
+            logger.info("GENERATING EXPLAINABILITY REPORT")
+            logger.info("="*80)
+            
+            final_report = self.explainer.generate_final_report()
+            print("\n" + final_report)
         
         # FINAL TIMING SUMMARY
         total_time = time.time() - training_start
@@ -757,40 +842,28 @@ class SystemTrainer:
         
         logger.info(f"\n  Cumulative Time Breakdown:")
         logger.info(f"  env.reset():      {cumulative_times['reset']:.2f}s  ({cumulative_times['reset']/total_time*100:.1f}%)")
-        logger.info(f"  agent.act():      {cumulative_times['act']:.2f}s  ({cumulative_times['act']/total_time*100:.1f}%)")
+        if self.explainer:
+            logger.info(f"  explainer.act():  {cumulative_times['explain']:.2f}s  ({cumulative_times['explain']/total_time*100:.1f}%)")
+        else:
+            logger.info(f"  agent.act():      {cumulative_times['act']:.2f}s  ({cumulative_times['act']/total_time*100:.1f}%)")
         logger.info(f"  env.step():       {cumulative_times['step']:.2f}s  ({cumulative_times['step']/total_time*100:.1f}%)")
         logger.info(f"  agent.remember(): {cumulative_times['remember']:.2f}s  ({cumulative_times['remember']/total_time*100:.1f}%)")
         logger.info(f"  agent.replay():   {cumulative_times['replay']:.2f}s  ({cumulative_times['replay']/total_time*100:.1f}%)")
         
         # Identify slowest operation
         slowest = max(cumulative_times.items(), key=lambda x: x[1])
-        logger.info(f"\n🔍 SLOWEST OPERATION: {slowest[0]} ({slowest[1]:.2f}s, {slowest[1]/total_time*100:.1f}%)")
+        logger.info(f"\n  SLOWEST OPERATION: {slowest[0]} ({slowest[1]:.2f}s, {slowest[1]/total_time*100:.1f}%)")
         
         # Provide recommendations
         if slowest[0] == 'step' and slowest[1]/total_time > 0.3:
             logger.info(f"     env.step() is taking {slowest[1]/total_time*100:.1f}% of time")
-            logger.info(f"    Pre-computation enabled: {env.precompute_observations}")
+            logger.info(f"      Pre-computation enabled: {env.precompute_observations}")
             if not env.precompute_observations:
-                logger.info(f"    TRY: Enable pre-computation for massive speedup!")
-            else:
-                logger.info(f"    Pre-computation is enabled but still slow")
-                logger.info(f"    Check if _get_observation() is being called in step()")
+                logger.info(f"      TRY: Enable pre-computation for massive speedup!")
         
         elif slowest[0] == 'replay' and slowest[1]/total_time > 0.4:
             logger.info(f"     agent.replay() is taking {slowest[1]/total_time*100:.1f}% of time")
-            logger.info(f"    Current: update_every={rl_config.update_every}, batch_size={rl_config.batch_size}")
-            logger.info(f"    TRY: Increase update_every to 20 (train less often)")
-            logger.info(f"    TRY: Reduce batch_size to 128 (faster batches)")
-        
-        elif slowest[0] == 'act' and slowest[1]/total_time > 0.2:
-            logger.info(f"     agent.act() is taking {slowest[1]/total_time*100:.1f}% of time")
-            logger.info(f"    Network size: {rl_config.hidden_dims}")
-            logger.info(f"    Device: {self.rl_agent.device}")
-            logger.info(f"    TRY: Use GPU if available")
-            logger.info(f"    TRY: Reduce network size to [128, 128]")
-        
-        else:
-            logger.info(f"    Training is well-balanced")
+            logger.info(f"      TRY: Increase update_every to 20 (train less often)")
         
         logger.info("")
         
@@ -803,6 +876,7 @@ class SystemTrainer:
             'timing_breakdown': {
                 'env_reset_seconds': cumulative_times['reset'],
                 'agent_act_seconds': cumulative_times['act'],
+                'explainer_act_seconds': cumulative_times['explain'],
                 'env_step_seconds': cumulative_times['step'],
                 'agent_remember_seconds': cumulative_times['remember'],
                 'agent_replay_seconds': cumulative_times['replay']
@@ -826,19 +900,19 @@ class SystemTrainer:
         if self.ml_predictor is not None:
             ml_path = models_dir / f'ml_predictor_{timestamp}.pkl'
             self.ml_predictor.save_model(str(ml_path))
-            logger.info(f"   ML model saved: {ml_path}")
+            logger.info(f"    ML model saved: {ml_path}")
         
         # Save RL agent
         if self.rl_agent is not None:
             rl_path = models_dir / f'rl_agent_{timestamp}.pt'
             self.rl_agent.save(str(rl_path))
-            logger.info(f"   RL agent saved: {rl_path}")
+            logger.info(f"    RL agent saved: {rl_path}")
 
         if self.feature_engineer is not None:
             import joblib
             fe_path = models_dir / 'feature_engineer.pkl'
             joblib.dump(self.feature_engineer, fe_path)
-            logger.info(f"   Feature engineer saved: {fe_path}")
+            logger.info(f"    Feature engineer saved: {fe_path}")
         
         # Save training results
         results_dir = Path(self.config['results_dir'])
@@ -859,7 +933,7 @@ class SystemTrainer:
         with open(results_path, 'w') as f:
             json.dump(json_results, f, indent=2)
         
-        logger.info(f"   Training results saved: {results_path}")
+        logger.info(f"    Training results saved: {results_path}")
     
     def _serialize_ml_results(self) -> Dict:
         """Convert ML results to JSON-serializable format"""
@@ -901,10 +975,6 @@ class SystemTrainer:
                 logger.info(f"  Environment creation: {metrics['env_creation_time']:.2f}s")
             if 'precomputation_enabled' in metrics:
                 logger.info(f"  Pre-computation: {' Enabled' if metrics['precomputation_enabled'] else ' Disabled'}")
-            if 'avg_episode_time' in metrics:
-                logger.info(f"  Avg time per episode: {metrics['avg_episode_time']:.2f}s")
-            if 'episodes_per_second' in metrics:
-                logger.info(f"  Training speed: {metrics['episodes_per_second']:.2f} episodes/second")
         
         # ML Results
         if self.training_results['ml_results']:
@@ -912,64 +982,81 @@ class SystemTrainer:
             ml_res = self.training_results['ml_results']
             logger.info(f"  Train Accuracy: {ml_res['train_accuracy']:.4f}")
             logger.info(f"  Train F1 Score: {ml_res['train_f1']:.4f}")
-            if 'validation' in ml_res:
-                logger.info(f"  Val Accuracy: {ml_res['validation']['accuracy']:.4f}")
-                logger.info(f"  Val F1 Score: {ml_res['validation']['f1']:.4f}")
         
         # RL Results
         if self.training_results['rl_results']:
             logger.info("\nRL Agent Results:")
             rl_res = self.training_results['rl_results']
             logger.info(f"  Total Episodes: {rl_res['total_episodes']}")
-            logger.info(f"  Training Duration: {rl_res['training_duration_minutes']:.1f} minutes")
-            logger.info(f"  Final Epsilon: {rl_res['final_epsilon']:.3f}")
-            logger.info(f"  Final 10 Avg Reward: {rl_res['final_10_avg_reward']:.2f}")
-            if 'validation' in rl_res:
-                logger.info(f"  Val Mean Reward: {rl_res['validation']['mean_reward']:.2f}")
-                logger.info(f"  Val Win Rate: {rl_res['validation']['mean_win_rate']:.2%}")
+            logger.info(f"  Training Time: {rl_res['training_time_seconds']/60:.1f} minutes")
+            logger.info(f"  Best Reward: {rl_res['best_reward']:.2f}")
+            logger.info(f"  Final Reward: {rl_res['final_reward']:.2f}")
         
         logger.info("\n" + "=" * 80)
 
 
+# ⭐ MODIFIED: Convenience functions now accept explainability params
 def train_ml_only(config_path: Optional[str] = None) -> Dict:
-    """
-    Train ML predictor only
-    
-    Args:
-        config_path: Path to config file
-        
-    Returns:
-        Training results
-    """
+    """Train ML predictor only"""
     trainer = SystemTrainer(config_path)
     return trainer.train_complete_system(train_ml=True, train_rl=False)
 
 
-def train_rl_only(config_path: Optional[str] = None) -> Dict:
+def train_rl_only(config_path: Optional[str] = None,
+                  explain: bool = False,
+                  explain_freq: int = 100,
+                  verbose: bool = False,
+                  explain_dir: str = 'logs/explanations') -> Dict:
     """
-    Train RL agent only (with optimizations)
+    Train RL agent only WITH OPTIONAL EXPLAINABILITY
     
     Args:
         config_path: Path to config file
-        
-    Returns:
-        Training results
+        explain: Enable explainability system
+        explain_freq: How often to print explanations
+        verbose: Explain every decision
+        explain_dir: Directory to save explanations
     """
     trainer = SystemTrainer(config_path)
+    
+    # ⭐ NEW: Set explainability config
+    if explain:
+        trainer.config['explainability'] = {
+            'enabled': True,
+            'verbose': verbose,
+            'explain_frequency': explain_freq,
+            'save_dir': explain_dir
+        }
+    
     return trainer.train_complete_system(train_ml=False, train_rl=True)
 
 
-def train_both(config_path: Optional[str] = None) -> Dict:
+def train_both(config_path: Optional[str] = None,
+               explain: bool = False,
+               explain_freq: int = 100,
+               verbose: bool = False,
+               explain_dir: str = 'logs/explanations') -> Dict:
     """
-    Train both ML and RL components (with optimizations)
+    Train both ML and RL WITH OPTIONAL EXPLAINABILITY
     
     Args:
         config_path: Path to config file
-        
-    Returns:
-        Training results
+        explain: Enable explainability system
+        explain_freq: How often to print explanations
+        verbose: Explain every decision
+        explain_dir: Directory to save explanations
     """
     trainer = SystemTrainer(config_path)
+    
+    # ⭐ NEW: Set explainability config
+    if explain:
+        trainer.config['explainability'] = {
+            'enabled': True,
+            'verbose': verbose,
+            'explain_frequency': explain_freq,
+            'save_dir': explain_dir
+        }
+    
     return trainer.train_complete_system(train_ml=True, train_rl=True)
 
 
@@ -982,22 +1069,14 @@ if __name__ == "__main__":
     )
     
     print("=" * 80)
-    print("TESTING SYSTEM TRAINER (OPTIMIZED)")
+    print("TESTING SYSTEM TRAINER (OPTIMIZED + EXPLAINABILITY)")
     print("=" * 80)
     
-    # Create a minimal test config
-    test_config = {
-        'assets': ['BTC_USDT', 'ETH_USDT'],
-        'timeframes': ['1h'],
-        'rl_episodes': 10,  # Very short for testing
-        'save_models': False,
-        'precompute_observations': True  # ← Enable optimization
-    }
-    
-    # You can test with: python -m src.train_system
     print("\nNote: This is the OPTIMIZED unified training system.")
     print(" Pre-computation enabled for 10-30x speedup!")
+    print(" Explainability available for debugging!")
     print("\nRun with main.py for full functionality:")
     print("  python main.py train --ml")
     print("  python main.py train --rl")
     print("  python main.py train --both")
+    print("  python main.py train --both --explain")

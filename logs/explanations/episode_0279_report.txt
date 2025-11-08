@@ -1,0 +1,56 @@
+EPISODE 279 POLICY REPORT
+================================================================================
+
+================================================================================
+RL AGENT POLICY ANALYSIS REPORT
+================================================================================
+Generated: 2025-11-07 13:58:33
+Total Decisions Analyzed: 81400
+
+1. ACTION DISTRIBUTION
+--------------------------------------------------------------------------------
+  Hold      :  931 times ( 93.1%) - Avg Confidence: -0.050
+  Buy       :    4 times (  0.4%) - Avg Confidence: -0.254
+  Sell      :   65 times (  6.5%) - Avg Confidence: -0.083
+
+2. TOP INFLUENTIAL FEATURES
+--------------------------------------------------------------------------------
+   1. asset_sol                                - Importance: 0.250 (appeared 14674 times)
+   2. asset_dot                                - Importance: 0.212 (appeared 17295 times)
+   3. asset_btc                                - Importance: 0.204 (appeared 13267 times)
+   4. asset_eth                                - Importance: 0.203 (appeared 16214 times)
+   5. asset_ada                                - Importance: 0.179 (appeared 16124 times)
+   6. timeframe_1d                             - Importance: 0.130 (appeared 6509 times)
+   7. timeframe_4h                             - Importance: 0.123 (appeared 22439 times)
+   8. cci                                      - Importance: 0.115 (appeared 23879 times)
+   9. rsi_14                                   - Importance: 0.096 (appeared 23473 times)
+  10. ultimate_oscillator                      - Importance: 0.095 (appeared 23195 times)
+
+3. LEARNED POLICY RULES
+--------------------------------------------------------------------------------
+  • When Hold: key factors are asset_btc (imp: 29.42%), timeframe_1h (imp: 25.26%), asset_dot (imp: 23.16%)
+  • When Sell: key factors are asset_ada (imp: 15.65%), asset_btc (imp: 14.62%), cci (imp: 13.37%)
+
+4. DECISION CONFIDENCE ANALYSIS
+--------------------------------------------------------------------------------
+  Average Confidence: -0.053
+  Confidence Std Dev: 0.050
+  Average Q-Spread: 0.182
+  Low Confidence Decisions: 1000
+  Confidence Trend: increasing
+
+5. BEHAVIORAL PATTERNS
+--------------------------------------------------------------------------------
+  • Tends to stay in Hold for up to 173 consecutive steps
+  • Tends to stay in Sell for up to 6 consecutive steps
+  • Most common transition: Hold -> Hold (887 times)
+
+6. RISK BEHAVIOR
+--------------------------------------------------------------------------------
+  Risk Profile: BALANCED
+  High Risk Decisions: 0
+  Medium Risk Decisions: 992
+  Low Risk Decisions: 8
+  Total Warnings: 992
+
+================================================================================

@@ -213,7 +213,7 @@ class TradingEnvironment:
         original_current_dd = self.current_drawdown
         
         # Calculate observation for each possible step
-        for i in range(self.window_size, n_steps):
+        for i in range(self.window_size + 1, n_steps):
             # Temporarily set current_step
             self.current_step = i
             
@@ -296,11 +296,12 @@ class TradingEnvironment:
         """
         # Define asset mappings
         asset_map = {
-            'BTC/USD': 0,
-            'ETH/USD': 1,
-            'SOL/USD': 2,
-            'ADA/USD': 3,
-            'DOT/USD': 4
+            # All possible formats for each asset
+            'ETH_USDT': 0, 'ETH/USDT': 0, 'ETH/USD': 0, 'ETHUSD': 0,
+            'SOL_USDT': 1, 'SOL/USDT': 1, 'SOL/USD': 1, 'SOLUSD': 1,
+            'DOT_USDT': 2, 'DOT/USDT': 2, 'DOT/USD': 2, 'DOTUSD': 2,
+            'AVAX_USDT': 3, 'AVAX/USDT': 3, 'AVAX/USD': 3, 'AVAXUSD': 3,
+            'ADA_USDT': 4, 'ADA/USDT': 4, 'ADA/USD': 4, 'ADAUSD': 4
         }
         
         # Create one-hot vector [5 dimensions]
@@ -452,6 +453,7 @@ class TradingEnvironment:
         prev_portfolio_value = self._get_portfolio_value()
         
         # Execute action
+        self._check_position_timeout()
         self._execute_action(action)
         
         # â† ADD THIS: Validate balance after action
@@ -467,7 +469,6 @@ class TradingEnvironment:
         self.current_step += 1
 
         # Check if position held too long
-        self._check_position_timeout()
         
         # Check if episode is done
         self._check_done()
@@ -504,118 +505,92 @@ class TradingEnvironment:
         return obs
     
     def _calculate_observation(self) -> np.ndarray:
-        """
-        Calculate observation from scratch
-        
-        This is the ORIGINAL (slow) method that we now avoid by pre-computing!
-        
-        Observation structure (matches _get_observation_shape):
-        - Market features: 50 (from features_df)
-        - Technical features: 10 (recent OHLCV bars - simplified)
-        - Account features: 5 (balance, equity, etc.)
-        - Position features: 5 (position, entry_price, etc.)
-        Total BASE observation: 70 dimensions
-        
-        NOTE: Asset encoding (5) and timeframe encoding (6) are added in _get_observation()!
-        """
+        """Calculate observation - FIXED for no look-ahead bias"""
         obs = []
         
         # ========================================================================
-        # PART 1: Market features (50 dimensions from features_df)
+        # PART 1: Market features (use PREVIOUS bar's features)
         # ========================================================================
-        if self.features_df is not None and self.current_step < len(self.features_df):
-            # Get the 50 selected features for this step
-            market_features = self.features_df.iloc[self.current_step].values
+        if self.features_df is not None and self.current_step > 0:
+            # ✅ Use features from completed bar (t-1)
+            market_features = self.features_df.iloc[self.current_step - 1].values
             market_features = np.nan_to_num(market_features, nan=0.0, posinf=0.0, neginf=0.0)
-
-            # Pad to exactly 50 dimensions
+            
             if len(market_features) < 50:
                 padding = np.zeros(50 - len(market_features))
                 market_features = np.concatenate([market_features, padding])
-
-            obs.extend(market_features)
+            
+            obs.extend(market_features[:50])
         else:
-            # If no features available, use zeros
             obs.extend(np.zeros(50))
         
         # ========================================================================
-        # PART 2: Technical features (10 dimensions - recent OHLCV)
+        # PART 2: Technical features (use PREVIOUS bar's OHLC)
         # ========================================================================
-        # Instead of full price history, just use recent normalized OHLCV
-        current_price = self._get_current_price()
+        current_price = self._get_current_price()  # This is for normalization
         
         if self.current_step > 0:
-            # Get recent bar (normalized)
-            recent_open = self.prices[self.current_step, 0] / current_price
-            recent_high = self.prices[self.current_step, 1] / current_price  
-            recent_low = self.prices[self.current_step, 2] / current_price
-            recent_close = self.prices[self.current_step, 3] / current_price
+            # ✅ Use previous bar's OHLC (the last COMPLETED bar)
+            recent_open = self.prices[self.current_step - 1, 0] / current_price
+            recent_high = self.prices[self.current_step - 1, 1] / current_price
+            recent_low = self.prices[self.current_step - 1, 2] / current_price
+            recent_close = self.prices[self.current_step - 1, 3] / current_price
             
-            # Get previous bar for comparison
-            prev_close = self.prices[self.current_step - 1, 3] / current_price
-            
-            # Volume features
-            current_volume = self.volumes[self.current_step]
-            if self.current_step >= 20:
-                mean_volume = np.mean(self.volumes[self.current_step - 20:self.current_step])
+            # Previous close (2 bars ago)
+            if self.current_step > 1:
+                prev_close = self.prices[self.current_step - 2, 3] / current_price
             else:
-                mean_volume = np.mean(self.volumes[:self.current_step + 1])
+                prev_close = recent_close
             
-            volume_ratio = current_volume / mean_volume if mean_volume > 0 else 1.0
+            # Volume features (use previous bar's volume)
+            recent_volume = self.volumes[self.current_step - 1]
+            if self.current_step >= 20:
+                mean_volume = np.mean(self.volumes[max(0, self.current_step - 20):self.current_step])
+            else:
+                mean_volume = np.mean(self.volumes[:self.current_step])
             
-            # Technical features (10 dimensions)
+            volume_ratio = recent_volume / mean_volume if mean_volume > 0 else 1.0
+            
             obs.extend([
-                recent_open,      # 1. Open price (normalized)
-                recent_high,      # 2. High price (normalized)
-                recent_low,       # 3. Low price (normalized)
-                recent_close,     # 4. Close price (normalized)
-                prev_close,       # 5. Previous close (normalized)
-                (recent_close - recent_open) / (recent_open + 1e-10),  # 6. Return
-                (recent_high - recent_low) / (recent_close + 1e-10),   # 7. Range
-                volume_ratio,     # 8. Volume ratio
-                min(volume_ratio, 5.0),  # 9. Volume ratio clipped
-                float(recent_close > prev_close)  # 10. Price direction (1=up, 0=down)
+                recent_open,
+                recent_high,
+                recent_low,
+                recent_close,
+                prev_close,
+                (recent_close - recent_open) / (recent_open + 1e-10),
+                (recent_high - recent_low) / (recent_close + 1e-10),
+                volume_ratio,
+                min(volume_ratio, 5.0),
+                float(recent_close > prev_close)
             ])
         else:
-            # First step - use zeros
             obs.extend(np.zeros(10))
         
         # ========================================================================
-        # PART 3: Account features (5 dimensions)
+        # PART 3 & 4: Account and Position features (unchanged - these are fine)
         # ========================================================================
         portfolio_value = self._get_portfolio_value()
         
         obs.extend([
-            self.balance / self.initial_balance,              # 1. Cash balance (normalized)
-            portfolio_value / self.initial_balance,          # 2. Total portfolio value (normalized)
-            self.realized_pnl / self.initial_balance,        # 3. Realized PnL (normalized)
-            self.unrealized_pnl / self.initial_balance,      # 4. Unrealized PnL (normalized)
-            self.total_fees_paid / self.initial_balance      # 5. Total fees (normalized)
+            self.balance / self.initial_balance,
+            portfolio_value / self.initial_balance,
+            self.realized_pnl / self.initial_balance,
+            self.unrealized_pnl / self.initial_balance,
+            self.total_fees_paid / self.initial_balance
         ])
         
-        # ========================================================================
-        # PART 4: Position features (5 dimensions)
-        # ========================================================================
         obs.extend([
-            float(self.position),                                              # 1. Position type (0=flat, 1=long, -1=short)
-            self.entry_price / current_price if self.entry_price > 0 else 0,  # 2. Entry price (normalized)
-            self.position_size / self.initial_balance if self.position_size > 0 else 0,  # 3. Position size (normalized)
-            self.unrealized_pnl / self.initial_balance if self.position != Positions.FLAT else 0,  # 4. Unrealized PnL (normalized)
-            self._get_position_duration() / 100                               # 5. Position duration (normalized)
+            float(self.position),
+            self.entry_price / current_price if self.entry_price > 0 else 0,
+            self.position_size / self.initial_balance if self.position_size > 0 else 0,
+            self.unrealized_pnl / self.initial_balance if self.position != Positions.FLAT else 0,
+            self._get_position_duration() / 100
         ])
         
-        # ========================================================================
-        # Convert to numpy array and clean
-        # ========================================================================
         observation = np.array(obs, dtype=np.float32)
-        
-        # Replace any remaining NaN/Inf
         observation = np.nan_to_num(observation, nan=0.0, posinf=0.0, neginf=0.0)
-        
-        # Clip extreme values
         observation = np.clip(observation, -10, 10)
         
-        # âœ… FINAL VALIDATION: Should be exactly 70 dimensions (50+10+5+5)
         assert len(observation) == 70, f"Expected 70 dimensions but got {len(observation)}!"
         
         return observation
@@ -648,32 +623,21 @@ class TradingEnvironment:
     def _execute_buy(self, price: float) -> None:
         """
         Execute buy order - FIXED VERSION
-        
-        Key fixes:
-        1. Check if we're already in a position (shouldn't buy if already long)
-        2. Correct balance deduction
-        3. Proper fee calculation
         """
         
-        # âœ… FIX #1: Can only buy if FLAT or closing SHORT
+        # Check if we're already in a position
         if self.position == Positions.LONG:
-            # Already long, can't buy more (no pyramiding)
-            #logger.warning(f"Step {self.current_step}: Attempted to BUY while already LONG - ignoring")
             return
         
         if self.position == Positions.SHORT and self.enable_short:
-            # Close short position first
             self._close_position(price, 'BUY')
             return
-        
-        # Now we're FLAT and can open a LONG position
         
         # Calculate capital to use (95% for safety)
         available_capital = self.balance * 0.95
         
-        # âœ… FIX #2: Check if we have enough capital
-        if available_capital < 10:  # Minimum $10 to trade
-            #logger.warning(f"Step {self.current_step}: Insufficient capital ${available_capital:.2f} - skipping trade")
+        # Check if we have enough capital
+        if available_capital < 10:
             return
         
         # Apply slippage to price
@@ -691,17 +655,22 @@ class TradingEnvironment:
         # Net position after fees
         net_position_size = gross_position_size - coins_lost_to_fees
         
-        # âœ… FIX #3: Validate position BEFORE setting it
+        # ✅ FIX: Better validation against INITIAL balance
         position_value = net_position_size * execution_price
-        if position_value > self.balance * 1.05:
-            logger.error(f"Step {self.current_step}: Calculated position ${position_value:.2f} exceeds 2x initial balance!")
-            logger.error(f"  Available capital: ${available_capital:.2f}")
-            logger.error(f"  Execution price: ${execution_price:.4f}")
-            logger.error(f"  Would get: {net_position_size:.2f} coins")
-            return  # Don't execute this trade
+        if position_value > self.initial_balance * 1.5:  # 150% of starting capital
+            logger.error(f"Position ${position_value:.2f} exceeds 1.5x initial balance ${self.initial_balance:.2f}!")
+            return
         
-        # âœ… FIX #4: Deduct FULL amount from balance (capital + fees)
+        # Deduct amount from balance
         self.balance -= available_capital
+        
+        # ✅ FIX: Check for negative balance (defensive programming)
+        if self.balance < 0:
+            logger.error(f"CRITICAL: Negative balance ${self.balance:.2f} after buy!")
+            self.balance += available_capital  # Rollback
+            self.done = True
+            self.truncated = True
+            return
         
         # Set position
         self.position_size = net_position_size
@@ -712,14 +681,6 @@ class TradingEnvironment:
         
         # Record trade
         self._record_trade('BUY', execution_price, self.position_size, fee_in_dollars)
-        
-        # âœ… FIX #5: Add debug logging to track position accumulation
-        logger.debug(f"BUY executed at step {self.current_step}:")
-        logger.debug(f"  Capital used: ${available_capital:.2f}")
-        logger.debug(f"  Price: ${execution_price:.4f}")
-        logger.debug(f"  Position size: {self.position_size:.2f} coins")
-        logger.debug(f"  Position value: ${position_value:.2f}")
-        logger.debug(f"  Remaining balance: ${self.balance:.2f}")
 
     
     def _execute_sell(self, price: float) -> None:
@@ -756,14 +717,22 @@ class TradingEnvironment:
             gross_position_size = available_capital / execution_price
             net_position_size = gross_position_size - coins_lost_to_fees
             
-            # Validate
+            # ✅ FIX: Validate against INITIAL balance (same as BUY)
             position_value = net_position_size * execution_price
-            if position_value > self.balance * 1.05:
-                logger.error(f"Step {self.current_step}: SHORT position too large - skipping")
+            if position_value > self.initial_balance * 1.5:  # 150% of starting capital
+                logger.error(f"SHORT position ${position_value:.2f} exceeds 1.5x initial balance ${self.initial_balance:.2f}!")
                 return
             
             # Deduct capital
             self.balance -= available_capital
+            
+            # ✅ FIX: Check for negative balance (defensive programming)
+            if self.balance < 0:
+                logger.error(f"CRITICAL: Negative balance ${self.balance:.2f} after SHORT!")
+                self.balance += available_capital  # Rollback
+                self.done = True
+                self.truncated = True
+                return
             
             self.position_size = net_position_size
             self.entry_price = execution_price
@@ -926,7 +895,7 @@ class TradingEnvironment:
         self.total_fees_paid += fees
         
         # Record trade
-        self._record_trade(action, execution_price, self.position_size, fees, gross_pnl)
+        self._record_trade(action, execution_price, self.position_size, fees, net_pnl)
         
         # âœ… FIX #3: CRITICAL - Reset position to ZERO
         old_position_size = self.position_size
@@ -944,6 +913,7 @@ class TradingEnvironment:
         logger.debug(f"  PnL: ${net_pnl:.2f}")
         logger.debug(f"  New balance: ${self.balance:.2f}")
         logger.debug(f"  Position size now: {self.position_size:.2f} (should be 0)")
+
     
     def _check_exit_conditions(self, current_price: float) -> None:
         """Check stop loss and take profit conditions"""
@@ -992,8 +962,11 @@ class TradingEnvironment:
     
     
     def _get_current_price(self) -> float:
-        """Get current market price"""
-        return self.prices[self.current_step, 3]  # Close price
+        """Get realistic execution price - current bar's open"""
+        if self.current_step >= len(self.prices):
+            return self.prices[-1, 3]
+        # Use CURRENT bar's open (known at bar start)
+        return self.prices[self.current_step, 0]
     
     def _get_portfolio_value(self) -> float:
         """Calculate total portfolio value - FIXED VERSION"""
@@ -1058,17 +1031,34 @@ class TradingEnvironment:
         
         # Check if we've used all available data
         if self.current_step >= len(self.prices) - 1:
-            # Natural end - close any remaining position
+            # ✅ FIX: DON'T force-close, but penalize open positions
+            
             if self.position != Positions.FLAT:
+                # Agent failed to close position - BIG PENALTY
+                # Calculate unrealized P&L
                 current_price = self._get_current_price()
+                
                 if self.position == Positions.LONG:
-                    self._close_position(current_price, 'SELL')
-                else:
-                    self._close_position(current_price, 'BUY')
+                    pnl = (current_price - self.entry_price) * self.position_size
+                else:  # SHORT
+                    pnl = (self.entry_price - current_price) * self.position_size
+                
+                # Deduct fees as if position was closed
+                pnl -= self.position_size * current_price * self.fee_rate
+                
+                # Apply penalty for not closing (e.g., -10% of position value)
+                penalty = self.position_size * current_price * 0.10
+                
+                # Update balance with P&L minus penalty
+                self.balance += pnl - penalty
+                
+                # Log warning
+                logger.warning(f"Episode ended with open position! Applied penalty: ${penalty:.2f}")
             
             self.done = True
-            self.truncated = False
-            return
+            self.truncated = False  # ✅ ADD THIS!
+            return  # ✅ ADD THIS!
+            
         
         # Emergency stop conditions
         portfolio_value = self._get_portfolio_value()
@@ -1136,7 +1126,7 @@ class TradingEnvironment:
         if not self.trades:
             return 0.5
         
-        winning_trades = sum(1 for t in self.trades if t.get('pnl', 0) and t['pnl'] > 0)
+        winning_trades = sum(1 for t in self.trades if t.get('pnl') is not None and t['pnl'] > 0)
         total_trades = sum(1 for t in self.trades if t.get('pnl') is not None)
         
         if total_trades == 0:
@@ -1199,8 +1189,8 @@ class TradingEnvironment:
             unrealized_pnl=self.unrealized_pnl,
             realized_pnl=self.realized_pnl,
             total_trades=len(self.trades),
-            winning_trades=sum(1 for t in self.trades if t.get('pnl', 0) and t['pnl'] > 0),
-            losing_trades=sum(1 for t in self.trades if t.get('pnl', 0) and t['pnl'] < 0),
+            winning_trades=sum(1 for t in self.trades if t.get('pnl') is not None and t['pnl'] > 0),
+            losing_trades=sum(1 for t in self.trades if t.get('pnl') is not None and t['pnl'] < 0),
             current_drawdown=self.current_drawdown,
             max_drawdown=self.max_drawdown,
             sharpe_ratio=self._get_sharpe_ratio()
@@ -1269,6 +1259,161 @@ class TradingEnvironment:
             'profit_factor': abs(sum(t['pnl'] for t in winning_trades) / 
                                sum(t['pnl'] for t in losing_trades)) if losing_trades else 0
         }
+    
+    def get_feature_names(self) -> List[str]:
+        """
+        Get feature names for explainability system
+        
+        This method returns meaningful names for all features in the observation space.
+        The names match the order and dimensions of features in _calculate_observation()
+        and _get_observation().
+        
+        Returns:
+            List of feature names matching the observation dimensions (81 total)
+        
+        Feature breakdown:
+            - Market features (50): From features_df or selected_features
+            - Technical features (10): OHLC, volume ratios, etc.
+            - Account features (5): Balance, equity, PnL, fees
+            - Position features (5): Position state, entry price, size, etc.
+            - Asset encoding (5): One-hot encoding for asset type
+            - Timeframe encoding (6): One-hot encoding for timeframe
+        """
+        feature_names = []
+        
+        # ========================================================================
+        # PART 1: Market features (50 dimensions)
+        # ========================================================================
+        if self.selected_features and len(self.selected_features) > 0:
+            # Use actual selected feature names from ML training
+            # Take first 50 or pad if less
+            market_features = self.selected_features[:50]
+            
+            # Pad if we have less than 50
+            if len(market_features) < 50:
+                market_features = list(market_features) + [
+                    f'market_feature_{i}' for i in range(len(market_features), 50)
+                ]
+            
+            feature_names.extend(market_features)
+            
+        elif self.features_df is not None and len(self.features_df.columns) > 0:
+            # Use actual feature names from features_df
+            market_features = list(self.features_df.columns[:50])
+            
+            # Pad if needed
+            if len(market_features) < 50:
+                market_features = market_features + [
+                    f'market_feature_{i}' for i in range(len(market_features), 50)
+                ]
+            
+            feature_names.extend(market_features)
+            
+        else:
+            # Fallback: generic feature names
+            feature_names.extend([
+                # Common technical indicators (make educated guesses)
+                'rsi_14', 'rsi_28', 'macd', 'macd_signal', 'macd_hist',
+                'bb_upper', 'bb_middle', 'bb_lower', 'bb_width', 'bb_position',
+                'sma_20', 'sma_50', 'sma_100', 'sma_200',
+                'ema_12', 'ema_26', 'ema_50', 'ema_100',
+                'atr_14', 'atr_28', 'adx_14', 'adx_28',
+                'stoch_k', 'stoch_d', 'stoch_rsi',
+                'cci_20', 'williams_r', 'roc_10', 'roc_20',
+                'obv', 'ad', 'mfi_14',
+                'volume_sma_20', 'volume_ratio_20', 'volume_std_20',
+                'high_low_ratio', 'close_open_ratio',
+                'upper_shadow', 'lower_shadow', 'body_size',
+                'price_change_1', 'price_change_5', 'price_change_10',
+                'volatility_10', 'volatility_20', 'volatility_50',
+                'support_level', 'resistance_level', 'pivot_point',
+                'fibonacci_382', 'fibonacci_618',
+            ])
+        
+        # ========================================================================
+        # PART 2: Technical features (10 dimensions)
+        # ========================================================================
+        feature_names.extend([
+            'recent_open_norm',           # Normalized recent open price
+            'recent_high_norm',           # Normalized recent high price
+            'recent_low_norm',            # Normalized recent low price
+            'recent_close_norm',          # Normalized recent close price
+            'prev_close_norm',            # Normalized previous close price
+            'candle_body_ratio',          # (close - open) / open
+            'candle_range_ratio',         # (high - low) / close
+            'volume_ratio',               # Recent volume / mean volume
+            'volume_ratio_capped',        # Volume ratio capped at 5.0
+            'price_direction',            # 1.0 if close > prev_close else 0.0
+        ])
+        
+        # ========================================================================
+        # PART 3: Account features (5 dimensions)
+        # ========================================================================
+        feature_names.extend([
+            'balance_normalized',         # Balance / initial_balance
+            'portfolio_value_normalized', # Portfolio value / initial_balance
+            'realized_pnl_normalized',    # Realized PnL / initial_balance
+            'unrealized_pnl_normalized',  # Unrealized PnL / initial_balance
+            'total_fees_normalized',      # Total fees / initial_balance
+        ])
+        
+        # ========================================================================
+        # PART 4: Position features (5 dimensions)
+        # ========================================================================
+        feature_names.extend([
+            'position_type',              # 0=FLAT, 1=LONG, -1=SHORT
+            'entry_price_normalized',     # Entry price / current_price
+            'position_size_normalized',   # Position size / initial_balance
+            'position_pnl_normalized',    # Position PnL / initial_balance
+            'position_duration_normalized', # Duration / 100
+        ])
+        
+        # ========================================================================
+        # PART 5: Asset encoding (5 dimensions)
+        # ========================================================================
+        feature_names.extend([
+            'asset_btc',    # 1.0 if BTC/USD
+            'asset_eth',    # 1.0 if ETH/USD
+            'asset_sol',    # 1.0 if SOL/USD
+            'asset_ada',    # 1.0 if ADA/USD
+            'asset_dot',    # 1.0 if DOT/USD
+        ])
+        
+        # ========================================================================
+        # PART 6: Timeframe encoding (6 dimensions)
+        # ========================================================================
+        feature_names.extend([
+            'timeframe_1m',   # 1.0 if 1-minute
+            'timeframe_5m',   # 1.0 if 5-minute
+            'timeframe_15m',  # 1.0 if 15-minute
+            'timeframe_1h',   # 1.0 if 1-hour
+            'timeframe_4h',   # 1.0 if 4-hour
+            'timeframe_1d',   # 1.0 if 1-day
+        ])
+        
+        # ========================================================================
+        # Validation: Ensure we have exactly the right number of features
+        # ========================================================================
+        expected_dims = self.observation_space_shape[0]
+        actual_dims = len(feature_names)
+        
+        if actual_dims != expected_dims:
+            logger.warning(
+                f"Feature name count mismatch: expected {expected_dims}, got {actual_dims}"
+            )
+            
+            # Adjust if needed
+            if actual_dims < expected_dims:
+                # Pad with generic names
+                feature_names.extend([
+                    f'unknown_feature_{i}' 
+                    for i in range(actual_dims, expected_dims)
+                ])
+            else:
+                # Truncate
+                feature_names = feature_names[:expected_dims]
+        
+        return feature_names
 
 
 # Testing function

@@ -28,21 +28,39 @@ logger = None
 
 
 def handle_train_command_optimized(args):
-    """Handle optimized model training commands"""
+    """Handle optimized model training commands WITH EXPLAINABILITY"""
     from src.optimized_train_system import train_ml_only_fast, train_rl_only_fast, train_both_fast
     from src.gpu_optimization import setup_optimal_training
+    
+    # ⭐ NEW: Check if explainability requested ⭐
+    if args.explain:
+        logger.info("="*80)
+        logger.info(" EXPLAINABILITY ENABLED")
+        logger.info("="*80)
+        logger.info(f"  Explain Frequency: Every {args.explain_freq} steps")
+        logger.info(f"  Verbose Mode: {'ON' if args.verbose else 'OFF'}")
+        logger.info(f"  Save Directory: {args.explain_dir}")
+        logger.info("="*80 + "\n")
     
     logger.info("="*80)
     logger.info("STARTING OPTIMIZED MODEL TRAINING")
     logger.info("="*80)
     
-    # Setup optimal configuration and save to file
+    # Setup optimal configuration
     config = setup_optimal_training(args.config if hasattr(args, 'config') else None)
     
-    # Use the saved config file path
+    # ⭐ ADD EXPLAINABILITY SETTINGS TO CONFIG ⭐
+    if args.explain:
+        config['explainability'] = {
+            'enabled': True,
+            'verbose': args.verbose,
+            'explain_frequency': args.explain_freq,
+            'save_dir': args.explain_dir
+        }
+    
     config_path = 'config/optimal_training_config.json'
     
-    # Start progress monitor in background if requested
+    # Start progress monitor if requested
     if args.monitor:
         logger.info("\nStarting progress monitor in new terminal...")
         try:
@@ -52,7 +70,6 @@ def handle_train_command_optimized(args):
                 subprocess.Popen(['gnome-terminal', '--', 'python', 'src/training_monitor.py'])
         except Exception as e:
             logger.warning(f"Could not start monitor: {e}")
-            logger.info("You can manually run: python src/training_monitor.py")
     
     try:
         if args.ml:
@@ -62,12 +79,22 @@ def handle_train_command_optimized(args):
             
         elif args.rl:
             logger.info("\n>>> Training RL Agent Only (FAST) <<<\n")
-            results = train_rl_only_fast(config_path)
+            # ⭐ Pass explainability args to RL training ⭐
+            results = train_rl_only_fast(config_path, 
+                                        explain=args.explain,
+                                        explain_freq=args.explain_freq,
+                                        verbose=args.verbose,
+                                        explain_dir=args.explain_dir)
             logger.info(" RL training complete")
             
         elif args.both:
             logger.info("\n>>> Training Both ML and RL (FAST) <<<\n")
-            results = train_both_fast(config_path)
+            # ⭐ Pass explainability args to full training ⭐
+            results = train_both_fast(config_path,
+                                     explain=args.explain,
+                                     explain_freq=args.explain_freq,
+                                     verbose=args.verbose,
+                                     explain_dir=args.explain_dir)
             logger.info(" Complete system training finished")
             
         else:
@@ -79,15 +106,18 @@ def handle_train_command_optimized(args):
         print(" TRAINING COMPLETED SUCCESSFULLY")
         print("="*80)
         
-        # Print speedup info
-        if 'speedup_metrics' in results:
-            speedup = results['speedup_metrics']
-            print(f"\nTraining Time: {speedup['total_time_hours']:.2f} hours")
-            print(f"Estimated Speedup: {speedup['estimated_speedup']:.1f}x faster")
+        # ⭐ Show explainability report location if enabled ⭐
+        if args.explain:
+            print(f"\n EXPLAINABILITY REPORTS:")
+            print(f"  - Decision history: {args.explain_dir}/decision_history.json")
+            print(f"  - Policy report: {args.explain_dir}/final_policy_report.txt")
+            print(f"  - Visualizations: {args.explain_dir}/visualizations/")
+            print(f"\nTo view the policy report:")
+            print(f"  cat {args.explain_dir}/final_policy_report.txt")
         
         print("\nNext steps:")
-        print("  1. Run backtesting: python main.py backtest --run")
-        print("  2. Start paper trading: python main.py paper --start")
+        print("  1. Run backtesting: python main.py backtest --run --explain")
+        print("  2. Start paper trading: python main.py paper --start --explain")
         print("  3. View training report: python src/training_monitor.py --report")
         
     except Exception as e:
@@ -239,12 +269,38 @@ def handle_backtest_command(args):
         logger.info("Running standard backtest...")
         from src.backtesting.backtester import Backtester, BacktestConfig
         
-        backtester = Backtester(BacktestConfig())
-        results = backtester.run()
-        logger.info(f" Backtest complete")
+        try:
+            backtester = Backtester(BacktestConfig())
+            results = backtester.run()
+            
+            # Print results
+            print("\n" + "="*80)
+            print(" BACKTEST COMPLETED")
+            print("="*80)
+            print(f"\nSharpe Ratio: {results.sharpe_ratio:.3f}")
+            print(f"Total Return: {results.total_return:.2%}")
+            print(f"Max Drawdown: {results.max_drawdown:.2%}")
+            print(f"Total Trades: {results.total_trades}")
+            print(f"Win Rate: {results.win_rate:.2%}")
+            
+            logger.info(" Backtest complete")
+            
+        except Exception as e:
+            logger.error(f"Backtest failed: {e}", exc_info=True)
+            sys.exit(1)
         
     elif args.walk_forward:
-        logger.info("\n" + "="*80)
+        # ⭐ Check if explainability requested ⭐
+        if hasattr(args, 'explain') and args.explain:
+            logger.info("="*80)
+            logger.info(" EXPLAINABILITY ENABLED FOR WALK-FORWARD VALIDATION")
+            logger.info("="*80)
+            logger.info(f"  Explain Frequency: Every {args.explain_freq} decisions")
+            logger.info(f"  Verbose Mode: {'ON' if args.verbose else 'OFF'}")
+            logger.info(f"  Save Directory: {args.explain_dir}")
+            logger.info("="*80 + "\n")
+        
+        logger.info("="*80)
         logger.info("WALK-FORWARD VALIDATION (2025 HOLDOUT DATA)")
         logger.info("="*80)
         
@@ -252,8 +308,13 @@ def handle_backtest_command(args):
             # Import the comprehensive walk-forward runner from project root
             from src.backtesting.walk_forward_runner import run_walk_forward_validation
             
-            # Run validation on 2025 data from data/raw
-            results = run_walk_forward_validation()
+            # ⭐ Run validation with explainability parameters ⭐
+            results = run_walk_forward_validation(
+                explain=args.explain if hasattr(args, 'explain') else False,
+                explain_frequency=args.explain_freq if hasattr(args, 'explain_freq') else 100,
+                verbose=args.verbose if hasattr(args, 'verbose') else False,
+                explain_dir=args.explain_dir if hasattr(args, 'explain_dir') else 'logs/backtest_explanations'
+            )
             
             logger.info("\n Walk-forward validation complete!")
             logger.info(f"   Test Period: Jan 1 - Oct 26, 2025")
@@ -261,10 +322,25 @@ def handle_backtest_command(args):
             logger.info(f"   Average Sharpe: {results['avg_sharpe']:.2f}")
             logger.info(f"   Successful on: {len([r for r in results['individual_results'].values() if r['total_return'] > 0])}/{len(results['individual_results'])} assets")
             
+            # ⭐ Show explainability report location if enabled ⭐
+            if hasattr(args, 'explain') and args.explain:
+                print("\n" + "="*80)
+                print(" EXPLAINABILITY REPORTS")
+                print("="*80)
+                print(f"  - Decision history: {args.explain_dir}/decision_history.json")
+                print(f"  - Policy report: {args.explain_dir}/backtest_policy_report.txt")
+                print(f"  - Visualizations: {args.explain_dir}/visualizations/")
+                print(f"\nTo view the policy report:")
+                print(f"  cat {args.explain_dir}/backtest_policy_report.txt")
+                print("="*80)
+            
         except Exception as e:
             logger.error(f"Walk-forward validation failed: {e}", exc_info=True)
-            import sys
             sys.exit(1)
+    
+    else:
+        logger.error("Please specify --walk-forward or --run")
+        sys.exit(1)
 
 
 def handle_paper_command(args):
@@ -359,6 +435,15 @@ Examples:
     train_parser.add_argument('--monitor', action='store_true',
                              help='Start progress monitor in new terminal')
     train_parser.add_argument('--config', help='Path to config file')
+
+    train_parser.add_argument('--explain', action='store_true', 
+                             help='Enable explainability (show why agent makes decisions)')
+    train_parser.add_argument('--verbose', action='store_true',
+                             help='Explain EVERY decision (warning: lots of output)')
+    train_parser.add_argument('--explain-freq', type=int, default=100,
+                             help='How often to print explanations (default: 100)')
+    train_parser.add_argument('--explain-dir', type=str, default='logs/explanations',
+                             help='Directory to save explanations')
     
     # Monitor command (NEW)
     monitor_parser = subparsers.add_parser('monitor', help='Monitor training progress')
@@ -403,6 +488,15 @@ Examples:
     backtest_group.add_argument('--run', action='store_true', help='Run backtest')
     backtest_group.add_argument('--walk-forward', action='store_true', 
                                 help='Walk-forward analysis')
+    
+    backtest_parser.add_argument('--explain', action='store_true',
+                                help='Explain backtest decisions')
+    backtest_parser.add_argument('--verbose', action='store_true',
+                                help='Verbose explanations')
+    backtest_parser.add_argument('--explain-freq', type=int, default=100,
+                                help='How often to print explanations (default: 100)')
+    backtest_parser.add_argument('--explain-dir', type=str, default='logs/backtest_explanations',
+                                help='Directory to save explanations')
     
     # Paper trading command
     paper_parser = subparsers.add_parser('paper', help='Paper trading')

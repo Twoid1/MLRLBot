@@ -1,0 +1,57 @@
+EPISODE 189 POLICY REPORT
+================================================================================
+
+================================================================================
+RL AGENT POLICY ANALYSIS REPORT
+================================================================================
+Generated: 2025-11-07 13:55:48
+Total Decisions Analyzed: 54600
+
+1. ACTION DISTRIBUTION
+--------------------------------------------------------------------------------
+  Hold      :  949 times ( 94.9%) - Avg Confidence: -0.033
+  Buy       :   20 times (  2.0%) - Avg Confidence: -0.115
+  Sell      :   31 times (  3.1%) - Avg Confidence: -0.033
+
+2. TOP INFLUENTIAL FEATURES
+--------------------------------------------------------------------------------
+   1. asset_sol                                - Importance: 0.238 (appeared 11601 times)
+   2. asset_dot                                - Importance: 0.227 (appeared 10411 times)
+   3. asset_eth                                - Importance: 0.198 (appeared 11966 times)
+   4. asset_btc                                - Importance: 0.183 (appeared 7544 times)
+   5. asset_ada                                - Importance: 0.163 (appeared 9845 times)
+   6. cci                                      - Importance: 0.120 (appeared 15433 times)
+   7. timeframe_1d                             - Importance: 0.119 (appeared 4264 times)
+   8. timeframe_4h                             - Importance: 0.107 (appeared 15916 times)
+   9. rsi_14                                   - Importance: 0.098 (appeared 15142 times)
+  10. chaikin_osc                              - Importance: 0.098 (appeared 14903 times)
+
+3. LEARNED POLICY RULES
+--------------------------------------------------------------------------------
+  • When Hold: key factors are asset_dot (imp: 25.59%), asset_ada (imp: 25.17%), asset_eth (imp: 25.15%)
+  • When Sell: key factors are asset_ada (imp: 23.55%), rsi_7 (imp: 13.37%), timeframe_4h (imp: 12.26%)
+  • When Buy: key factors are timeframe_1h (imp: 28.23%), cci (imp: 16.09%), stoch_k_d_diff (imp: 14.69%)
+
+4. DECISION CONFIDENCE ANALYSIS
+--------------------------------------------------------------------------------
+  Average Confidence: -0.035
+  Confidence Std Dev: 0.045
+  Average Q-Spread: 0.296
+  Low Confidence Decisions: 1000
+  Confidence Trend: increasing
+
+5. BEHAVIORAL PATTERNS
+--------------------------------------------------------------------------------
+  • Tends to stay in Hold for up to 101 consecutive steps
+  • Tends to stay in Buy for up to 5 consecutive steps
+  • Most common transition: Hold -> Hold (905 times)
+
+6. RISK BEHAVIOR
+--------------------------------------------------------------------------------
+  Risk Profile: BALANCED
+  High Risk Decisions: 0
+  Medium Risk Decisions: 990
+  Low Risk Decisions: 10
+  Total Warnings: 990
+
+================================================================================

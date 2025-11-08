@@ -1,0 +1,448 @@
+====================================================================================================
+RL TRAINING COMPLETE - COMPREHENSIVE PERFORMANCE REPORT
+====================================================================================================
+Generated: 2025-11-07 11:48:53
+
+====================================================================================================
+1. TRAINING CONFIGURATION
+====================================================================================================
+Episodes Trained:          1100
+Steps per Episode:         {'1h': 500, '4h': 300, '1d': 100}
+Initial Balance:           $10,000.00
+Fee Rate:                  0.26%
+Network Architecture:      [256, 256, 128]
+Batch Size:                64
+Learning Rate:             0.0001
+Gamma (Discount):          0.99
+Double DQN:                True
+Dueling DQN:               True
+
+====================================================================================================
+2. TRAINING PROGRESS
+====================================================================================================
+OVERALL PERFORMANCE:
+  Total Episodes:          1100
+  Avg Reward:              -0.97
+  Best Reward:             15.88 (Episode 993)
+  Worst Reward:            -25.21 (Episode 1)
+  Reward Std Dev:          3.10
+  Avg Final Portfolio:     $9,902.62
+  Best Final Portfolio:    $11,588.04
+
+ CONSISTENCY CHECK:
+  Avg Reward:              -0.97
+  Expected from Portfolio: -0.97
+  Difference:              0.00
+  Status:                   EXCELLENT - Rewards match portfolio growth!
+
+====================================================================================================
+2.5 VALIDATION SUMMARY
+====================================================================================================
+VALIDATION CHECKS:
+  Reward Consistency......................  PASS
+  Portfolio Realistic.....................  PASS
+  Position Sizes..........................  PASS
+  Fee Calculation.........................  FAIL
+  Trade Counts............................  PASS
+
+ CRITICAL ISSUES FOUND:
+  1. Fees too high: $36,830 vs PnL $-69,636
+
+====================================================================================================
+3. EPISODE PERFORMANCE ANALYSIS
+====================================================================================================
+Phase 1 (Early Learning):
+  Episodes:                275
+  Avg Reward:              -1.16
+  Avg Portfolio:           $9,884.29
+  Best Reward:             12.49
+  Worst Reward:            -25.21
+
+Phase 2 (Exploration):
+  Episodes:                275
+  Avg Reward:              -0.93
+  Avg Portfolio:           $9,906.75
+  Best Reward:             12.13
+  Worst Reward:            -12.82
+
+Phase 3 (Refinement):
+  Episodes:                275
+  Avg Reward:              -0.80
+  Avg Portfolio:           $9,920.34
+  Best Reward:             10.50
+  Worst Reward:            -16.46
+
+Phase 4 (Convergence):
+  Episodes:                275
+  Avg Reward:              -1.01
+  Avg Portfolio:           $9,899.10
+  Best Reward:             15.88
+  Worst Reward:            -14.16
+
+LEARNING TREND:
+  First 10 Episodes Avg:   -2.80
+  Last 10 Episodes Avg:    -0.65
+  Improvement:             +76.8%
+  Status:                    Strong improvement - agent is learning well!
+
+====================================================================================================
+4. TRADING BEHAVIOR ANALYSIS
+====================================================================================================
+TRADING STATISTICS (Across All Episodes):
+  Total Trades:            3090
+  Winning Trades:          461
+  Losing Trades:           1058
+  Win Rate:                14.9%
+  Avg Trades per Episode:  2.8
+
+RISK/REWARD METRICS:
+  Profitable Episodes:     166 (15.1%)
+  Losing Episodes:         934 (84.9%)
+  Avg Profit (when win):   2.83
+  Avg Loss (when lose):    -1.65
+
+====================================================================================================
+5. LEARNING PROGRESS
+====================================================================================================
+EXPLORATION vs EXPLOITATION:
+  Starting Epsilon:        0.222 (100% random actions)
+  Final Epsilon:           0.010 (1.0% random actions)
+  Epsilon Decay:            Proper decay curve
+
+REWARD PROGRESSION (10-Episode Windows):
+  Episodes   1- 10:     Avg Reward =    -2.80
+  Episodes  11- 20:     Avg Reward =     0.56
+  Episodes  21- 30:     Avg Reward =    -3.44
+  Episodes  31- 40:     Avg Reward =    -1.46
+  Episodes  41- 50:     Avg Reward =    -1.61
+  Episodes  51- 60:     Avg Reward =    -0.06
+  Episodes  61- 70:     Avg Reward =     1.20
+  Episodes  71- 80:     Avg Reward =     0.04
+  Episodes  81- 90:     Avg Reward =    -0.14
+  Episodes  91-100:     Avg Reward =    -0.76
+  Episodes 101-110:     Avg Reward =    -1.69
+  Episodes 111-120:     Avg Reward =     1.80
+  Episodes 121-130:     Avg Reward =    -3.32
+  Episodes 131-140:     Avg Reward =    -2.67
+  Episodes 141-150:     Avg Reward =    -1.74
+  Episodes 151-160:     Avg Reward =    -0.59
+  Episodes 161-170:     Avg Reward =    -0.86
+  Episodes 171-180:     Avg Reward =    -1.17
+  Episodes 181-190:     Avg Reward =    -0.34
+  Episodes 191-200:     Avg Reward =    -0.91
+  Episodes 201-210:     Avg Reward =    -1.82
+  Episodes 211-220:     Avg Reward =    -0.99
+  Episodes 221-230:     Avg Reward =    -2.30
+  Episodes 231-240:     Avg Reward =    -0.58
+  Episodes 241-250:     Avg Reward =    -2.09
+  Episodes 251-260:     Avg Reward =    -0.34
+  Episodes 261-270:     Avg Reward =    -2.48
+  Episodes 271-280:     Avg Reward =    -2.17
+  Episodes 281-290:     Avg Reward =    -1.78
+  Episodes 291-300:     Avg Reward =    -1.40
+  Episodes 301-310:     Avg Reward =     0.51
+  Episodes 311-320:     Avg Reward =     0.33
+  Episodes 321-330:     Avg Reward =     0.59
+  Episodes 331-340:     Avg Reward =    -1.23
+  Episodes 341-350:     Avg Reward =    -1.49
+  Episodes 351-360:     Avg Reward =    -0.50
+  Episodes 361-370:     Avg Reward =    -0.50
+  Episodes 371-380:     Avg Reward =    -1.26
+  Episodes 381-390:     Avg Reward =    -1.95
+  Episodes 391-400:     Avg Reward =    -0.87
+  Episodes 401-410:     Avg Reward =    -0.12
+  Episodes 411-420:     Avg Reward =    -0.79
+  Episodes 421-430:     Avg Reward =    -2.07
+  Episodes 431-440:     Avg Reward =    -1.08
+  Episodes 441-450:     Avg Reward =    -0.32
+  Episodes 451-460:     Avg Reward =    -1.79
+  Episodes 461-470:     Avg Reward =    -0.83
+  Episodes 471-480:     Avg Reward =    -1.45
+  Episodes 481-490:     Avg Reward =    -0.83
+  Episodes 491-500:     Avg Reward =    -0.65
+  Episodes 501-510:     Avg Reward =    -1.94
+  Episodes 511-520:     Avg Reward =    -1.13
+  Episodes 521-530:     Avg Reward =    -0.18
+  Episodes 531-540:     Avg Reward =    -0.06
+  Episodes 541-550:     Avg Reward =    -1.95
+  Episodes 551-560:     Avg Reward =    -0.83
+  Episodes 561-570:     Avg Reward =    -1.66
+  Episodes 571-580:     Avg Reward =    -0.47
+  Episodes 581-590:     Avg Reward =    -2.48
+  Episodes 591-600:     Avg Reward =    -0.29
+  Episodes 601-610:     Avg Reward =     1.08
+  Episodes 611-620:     Avg Reward =    -1.87
+  Episodes 621-630:     Avg Reward =    -0.92
+  Episodes 631-640:     Avg Reward =    -1.22
+  Episodes 641-650:     Avg Reward =    -0.26
+  Episodes 651-660:     Avg Reward =    -0.91
+  Episodes 661-670:     Avg Reward =    -0.24
+  Episodes 671-680:     Avg Reward =     0.71
+  Episodes 681-690:     Avg Reward =    -1.34
+  Episodes 691-700:     Avg Reward =     0.38
+  Episodes 701-710:     Avg Reward =    -0.92
+  Episodes 711-720:     Avg Reward =     0.22
+  Episodes 721-730:     Avg Reward =    -0.81
+  Episodes 731-740:     Avg Reward =    -1.93
+  Episodes 741-750:     Avg Reward =    -1.14
+  Episodes 751-760:     Avg Reward =    -1.06
+  Episodes 761-770:     Avg Reward =     0.69
+  Episodes 771-780:     Avg Reward =    -1.74
+  Episodes 781-790:     Avg Reward =    -0.71
+  Episodes 791-800:     Avg Reward =    -1.32
+  Episodes 801-810:     Avg Reward =    -0.85
+  Episodes 811-820:     Avg Reward =    -0.91
+  Episodes 821-830:     Avg Reward =    -1.97
+  Episodes 831-840:     Avg Reward =    -1.39
+  Episodes 841-850:     Avg Reward =    -2.81
+  Episodes 851-860:     Avg Reward =    -1.47
+  Episodes 861-870:     Avg Reward =    -0.93
+  Episodes 871-880:     Avg Reward =     0.06
+  Episodes 881-890:     Avg Reward =    -2.14
+  Episodes 891-900:     Avg Reward =    -0.73
+  Episodes 901-910:     Avg Reward =    -0.60
+  Episodes 911-920:     Avg Reward =    -2.92
+  Episodes 921-930:     Avg Reward =    -0.38
+  Episodes 931-940:     Avg Reward =    -1.31
+  Episodes 941-950:     Avg Reward =    -0.54
+  Episodes 951-960:     Avg Reward =     0.10
+  Episodes 961-970:     Avg Reward =    -0.49
+  Episodes 971-980:     Avg Reward =    -2.66
+  Episodes 981-990:     Avg Reward =    -1.02
+  Episodes 991-1000:     Avg Reward =     0.83
+  Episodes 1001-1010:     Avg Reward =    -1.14
+  Episodes 1011-1020:     Avg Reward =    -1.67
+  Episodes 1021-1030:     Avg Reward =     0.27
+  Episodes 1031-1040:     Avg Reward =    -1.97
+  Episodes 1041-1050:     Avg Reward =    -0.35
+  Episodes 1051-1060:     Avg Reward =    -0.91
+  Episodes 1061-1070:     Avg Reward =    -1.01
+  Episodes 1071-1080:     Avg Reward =    -0.13
+  Episodes 1081-1090:     Avg Reward =    -0.92
+  Episodes 1091-1100:     Avg Reward =    -0.65
+
+====================================================================================================
+6. FINAL EVALUATION
+====================================================================================================
+EVALUATION RUN (Trained Agent):
+  Total Reward:            6.53
+  Final Portfolio Value:   $10,652.53
+  Total Trades:            16
+  Win Rate:                75.0%
+  Max Drawdown:            3.11%
+  Sharpe Ratio:            0.11
+
+ACTION DISTRIBUTION:
+  HOLD  : 18794 times ( 87.7%)
+  BUY   :    8 times (  0.0%)
+  SELL  : 2638 times ( 12.3%)
+
+====================================================================================================
+7. TOP 5 BEST EPISODES
+====================================================================================================
+
+ RANK #1 - Episode 993:
+  Total Reward:            15.88
+  Final Portfolio:         $11,588.04
+  Trades Executed:         8
+  Win Rate:                75.0%
+  Max Drawdown:            4.09%
+  Epsilon:                 0.010
+
+ RANK #2 - Episode 1041:
+  Total Reward:            15.20
+  Final Portfolio:         $11,519.70
+  Trades Executed:         8
+  Win Rate:                75.0%
+  Max Drawdown:            4.20%
+  Epsilon:                 0.010
+
+ RANK #3 - Episode 69:
+  Total Reward:            12.49
+  Final Portfolio:         $11,248.70
+  Trades Executed:         4
+  Win Rate:                100.0%
+  Max Drawdown:            2.18%
+  Epsilon:                 0.010
+
+ RANK #4 - Episode 450:
+  Total Reward:            12.13
+  Final Portfolio:         $11,212.94
+  Trades Executed:         3
+  Win Rate:                100.0%
+  Max Drawdown:            2.52%
+  Epsilon:                 0.010
+
+ RANK #5 - Episode 770:
+  Total Reward:            10.50
+  Final Portfolio:         $11,050.36
+  Trades Executed:         8
+  Win Rate:                75.0%
+  Max Drawdown:            3.31%
+  Epsilon:                 0.010
+
+====================================================================================================
+8. TOP 10 MOST PROFITABLE TRADES
+====================================================================================================
+
+ Analyzed 1519 completed trades across all episodes
+
+================================================================================
+RANK #1
+================================================================================
+  Episode:                 #718
+  Asset:                   DOT_USDT
+  Timestamp:               2023-01-14 06:00:00
+  Action:                  SELL
+  Price:                   $6.32
+  Size:                    1703.022965
+  PnL:                     $1,112.55 
+  Fees Paid:               $28.00
+  Net Profit:              $1,084.54
+
+================================================================================
+RANK #2
+================================================================================
+  Episode:                 #328
+  Asset:                   DOT_USDT
+  Timestamp:               2021-02-08 10:00:00
+  Action:                  SELL
+  Price:                   $22.03
+  Size:                    480.413844
+  PnL:                     $1,081.68 
+  Fees Paid:               $27.52
+  Net Profit:              $1,054.16
+
+================================================================================
+RANK #3
+================================================================================
+  Episode:                 #450
+  Asset:                   DOT_USDT
+  Timestamp:               2022-05-27 09:00:00
+  Action:                  SELL
+  Price:                   $9.60
+  Size:                    1093.759725
+  PnL:                     $1,000.10 
+  Fees Paid:               $27.31
+  Net Profit:              $972.79
+
+================================================================================
+RANK #4
+================================================================================
+  Episode:                 #993
+  Asset:                   SOL_USDT
+  Timestamp:               2021-09-09 00:00:00
+  Action:                  SELL
+  Price:                   $209.79
+  Size:                    52.833243
+  PnL:                     $954.89 
+  Fees Paid:               $28.82
+  Net Profit:              $926.07
+
+================================================================================
+RANK #5
+================================================================================
+  Episode:                 #770
+  Asset:                   SOL_USDT
+  Timestamp:               2023-01-29 17:00:00
+  Action:                  SELL
+  Price:                   $26.23
+  Size:                    395.728853
+  PnL:                     $879.16 
+  Fees Paid:               $26.99
+  Net Profit:              $852.16
+
+================================================================================
+RANK #6
+================================================================================
+  Episode:                 #1081
+  Asset:                   DOT_USDT
+  Timestamp:               2022-10-25 16:00:00
+  Action:                  SELL
+  Price:                   $6.37
+  Size:                    1557.357021
+  PnL:                     $760.77 
+  Fees Paid:               $25.79
+  Net Profit:              $734.98
+
+================================================================================
+RANK #7
+================================================================================
+  Episode:                 #819
+  Asset:                   ADA_USDT
+  Timestamp:               2021-03-17 20:00:00
+  Action:                  SELL
+  Price:                   $1.33
+  Size:                    7688.243154
+  PnL:                     $751.58 
+  Fees Paid:               $26.66
+  Net Profit:              $724.92
+
+================================================================================
+RANK #8
+================================================================================
+  Episode:                 #69
+  Asset:                   DOT_USDT
+  Timestamp:               2022-07-31 16:00:00
+  Action:                  SELL
+  Price:                   $8.91
+  Size:                    1206.408446
+  PnL:                     $749.73 
+  Fees Paid:               $27.95
+  Net Profit:              $721.78
+
+================================================================================
+RANK #9
+================================================================================
+  Episode:                 #966
+  Asset:                   SOL_USDT
+  Timestamp:               2024-11-17 04:00:00
+  Action:                  SELL
+  Price:                   $234.70
+  Size:                    42.029760
+  PnL:                     $738.40 
+  Fees Paid:               $25.65
+  Net Profit:              $712.76
+
+================================================================================
+RANK #10
+================================================================================
+  Episode:                 #697
+  Asset:                   ADA_USDT
+  Timestamp:               2023-01-09 00:00:00
+  Action:                  SELL
+  Price:                   $0.31
+  Size:                    32598.195203
+  PnL:                     $733.12 
+  Fees Paid:               $26.38
+  Net Profit:              $706.74
+
+
+================================================================================
+TRADE STATISTICS SUMMARY
+================================================================================
+  Total Completed Trades:  1519
+  Winning Trades:          461 (30.3%)
+  Losing Trades:           1058 (69.7%)
+  Total PnL:               $-69,635.79
+  Total Fees:              $36,829.70
+  Net PnL:                 $-106,465.49
+  Avg Win Size:            $205.46
+  Avg Loss Size:           $-155.34
+  Profit Factor:           0.58
+
+====================================================================================================
+9. RECOMMENDATIONS
+====================================================================================================
+TRAINING ANALYSIS:
+   Agent appears to have converged
+   Consider deploying to paper trading
+   Agent showing negative rewards
+   Review reward function and features
+   Exploration has decayed properly
+
+NEXT STEPS:
+  1. Review top performing trades and patterns
+  2. Test agent on different market conditions
+  3. Consider walk-forward validation
+  4. Start paper trading if performance is consistent

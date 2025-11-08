@@ -781,8 +781,8 @@ class DQNAgent:
             'win_rate': info.get('win_rate', 0),
             'sharpe_ratio': info.get('sharpe_ratio', 0),
             'num_trades': sum(1 for t in trades_list if t.get('pnl') is not None),
-            'winning_trades': sum(1 for t in trades_list if t.get('pnl') and t['pnl'] > 0),
-            'losing_trades': sum(1 for t in trades_list if t.get('pnl') and t['pnl'] < 0),
+            'winning_trades': sum(1 for t in trades_list if t.get('pnl') is not None and t['pnl'] > 0),  # ✅ CORRECT
+            'losing_trades': sum(1 for t in trades_list if t.get('pnl') is not None and t['pnl'] < 0),
             'max_drawdown': info.get('max_drawdown', 0),
             
             # ========== FIX: ADD TRADES LIST ==========

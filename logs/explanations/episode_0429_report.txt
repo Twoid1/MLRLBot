@@ -1,0 +1,57 @@
+EPISODE 429 POLICY REPORT
+================================================================================
+
+================================================================================
+RL AGENT POLICY ANALYSIS REPORT
+================================================================================
+Generated: 2025-11-07 14:02:58
+Total Decisions Analyzed: 124400
+
+1. ACTION DISTRIBUTION
+--------------------------------------------------------------------------------
+  Hold      :  808 times ( 80.8%) - Avg Confidence: -0.096
+  Buy       :   26 times (  2.6%) - Avg Confidence: 0.059
+  Sell      :  166 times ( 16.6%) - Avg Confidence: -0.092
+
+2. TOP INFLUENTIAL FEATURES
+--------------------------------------------------------------------------------
+   1. asset_sol                                - Importance: 0.256 (appeared 24204 times)
+   2. asset_dot                                - Importance: 0.211 (appeared 26904 times)
+   3. asset_eth                                - Importance: 0.207 (appeared 25174 times)
+   4. asset_btc                                - Importance: 0.200 (appeared 20533 times)
+   5. asset_ada                                - Importance: 0.179 (appeared 22307 times)
+   6. timeframe_1d                             - Importance: 0.154 (appeared 10647 times)
+   7. timeframe_4h                             - Importance: 0.121 (appeared 34424 times)
+   8. cci                                      - Importance: 0.113 (appeared 34064 times)
+   9. price_direction                          - Importance: 0.097 (appeared 49786 times)
+  10. timeframe_1h                             - Importance: 0.097 (appeared 43048 times)
+
+3. LEARNED POLICY RULES
+--------------------------------------------------------------------------------
+  • When Hold: key factors are asset_eth (imp: 24.40%), timeframe_1d (imp: 17.40%), asset_ada (imp: 16.18%)
+  • When Sell: key factors are price_direction (imp: 24.07%), asset_ada (imp: 17.37%), asset_dot (imp: 16.71%)
+  • When Buy: key factors are recent_low_norm (imp: 13.74%), chaikin_osc (imp: 12.79%), stoch_k_d_diff (imp: 12.66%)
+
+4. DECISION CONFIDENCE ANALYSIS
+--------------------------------------------------------------------------------
+  Average Confidence: -0.091
+  Confidence Std Dev: 0.065
+  Average Q-Spread: 0.358
+  Low Confidence Decisions: 989
+  Confidence Trend: increasing
+
+5. BEHAVIORAL PATTERNS
+--------------------------------------------------------------------------------
+  • Tends to stay in Hold for up to 103 consecutive steps
+  • Tends to stay in Sell for up to 10 consecutive steps
+  • Most common transition: Hold -> Hold (713 times)
+
+6. RISK BEHAVIOR
+--------------------------------------------------------------------------------
+  Risk Profile: BALANCED
+  High Risk Decisions: 0
+  Medium Risk Decisions: 985
+  Low Risk Decisions: 15
+  Total Warnings: 985
+
+================================================================================

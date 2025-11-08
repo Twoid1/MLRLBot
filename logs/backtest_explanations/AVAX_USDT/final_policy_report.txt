@@ -1,0 +1,61 @@
+
+
+================================================================================
+TRAINING SUMMARY
+================================================================================
+Total Episodes: 0
+Total Steps: 7153
+Decisions Analyzed: 7153
+================================================================================
+================================================================================
+RL AGENT POLICY ANALYSIS REPORT
+================================================================================
+Generated: 2025-11-06 17:43:42
+Total Decisions Analyzed: 7153
+
+1. ACTION DISTRIBUTION
+--------------------------------------------------------------------------------
+  Hold      :  975 times ( 97.5%) - Avg Confidence: 0.160
+  Buy       :   23 times (  2.3%) - Avg Confidence: 0.214
+  Sell      :    2 times (  0.2%) - Avg Confidence: -0.060
+
+2. TOP INFLUENTIAL FEATURES
+--------------------------------------------------------------------------------
+   1. rsi_14                                   - Importance: 0.137 (appeared 6607 times)
+   2. williams_r                               - Importance: 0.132 (appeared 6557 times)
+   3. ultimate_oscillator                      - Importance: 0.100 (appeared 6069 times)
+   4. rsi_7                                    - Importance: 0.098 (appeared 6203 times)
+   5. chaikin_osc                              - Importance: 0.097 (appeared 6261 times)
+   6. roc_10                                   - Importance: 0.082 (appeared 3955 times)
+   7. cci                                      - Importance: 0.075 (appeared 5896 times)
+   8. stoch_k_d_diff                           - Importance: 0.069 (appeared 4112 times)
+   9. volume_ratio                             - Importance: 0.068 (appeared 1228 times)
+  10. bearish_engulfing                        - Importance: 0.063 (appeared 252 times)
+
+3. LEARNED POLICY RULES
+--------------------------------------------------------------------------------
+  • When Hold: key factors are rsi_14 (imp: 13.71%), williams_r (imp: 13.44%)
+  • When Buy: key factors are chaikin_osc (imp: 17.64%), stoch_k_d_diff (imp: 14.92%), ultimate_oscillator (imp: 10.60%)
+
+4. DECISION CONFIDENCE ANALYSIS
+--------------------------------------------------------------------------------
+  Average Confidence: 0.161
+  Confidence Std Dev: 0.041
+  Average Q-Spread: 0.139
+  Low Confidence Decisions: 47
+  Confidence Trend: increasing
+
+5. BEHAVIORAL PATTERNS
+--------------------------------------------------------------------------------
+  • Tends to stay in Hold for up to 146 consecutive steps
+  • Most common transition: Hold -> Hold (953 times)
+
+6. RISK BEHAVIOR
+--------------------------------------------------------------------------------
+  Risk Profile: BALANCED
+  High Risk Decisions: 0
+  Medium Risk Decisions: 538
+  Low Risk Decisions: 462
+  Total Warnings: 538
+
+================================================================================

@@ -1,0 +1,56 @@
+EPISODE 2209 POLICY REPORT
+================================================================================
+
+================================================================================
+RL AGENT POLICY ANALYSIS REPORT
+================================================================================
+Generated: 2025-11-07 14:58:44
+Total Decisions Analyzed: 661475
+
+1. ACTION DISTRIBUTION
+--------------------------------------------------------------------------------
+  Hold      :  867 times ( 86.7%) - Avg Confidence: -0.044
+  Buy       :  129 times ( 12.9%) - Avg Confidence: -0.041
+  Sell      :    4 times (  0.4%) - Avg Confidence: -0.345
+
+2. TOP INFLUENTIAL FEATURES
+--------------------------------------------------------------------------------
+   1. asset_dot                                - Importance: 0.204 (appeared 130822 times)
+   2. asset_btc                                - Importance: 0.202 (appeared 121987 times)
+   3. asset_sol                                - Importance: 0.197 (appeared 128421 times)
+   4. asset_eth                                - Importance: 0.180 (appeared 114695 times)
+   5. timeframe_1d                             - Importance: 0.139 (appeared 52144 times)
+   6. price_direction                          - Importance: 0.131 (appeared 275681 times)
+   7. timeframe_4h                             - Importance: 0.116 (appeared 149928 times)
+   8. asset_ada                                - Importance: 0.111 (appeared 115224 times)
+   9. rsi_14                                   - Importance: 0.105 (appeared 181918 times)
+  10. ultimate_oscillator                      - Importance: 0.104 (appeared 179660 times)
+
+3. LEARNED POLICY RULES
+--------------------------------------------------------------------------------
+  • When Hold: key factors are price_direction (imp: 21.23%), asset_dot (imp: 14.89%), timeframe_1d (imp: 12.26%)
+  • When Buy: key factors are asset_sol (imp: 12.56%), williams_r (imp: 11.96%), rsi_7 (imp: 10.69%)
+
+4. DECISION CONFIDENCE ANALYSIS
+--------------------------------------------------------------------------------
+  Average Confidence: -0.045
+  Confidence Std Dev: 0.107
+  Average Q-Spread: 0.238
+  Low Confidence Decisions: 987
+  Confidence Trend: decreasing
+
+5. BEHAVIORAL PATTERNS
+--------------------------------------------------------------------------------
+  • Tends to stay in Hold for up to 177 consecutive steps
+  • Tends to stay in Buy for up to 6 consecutive steps
+  • Most common transition: Hold -> Hold (784 times)
+
+6. RISK BEHAVIOR
+--------------------------------------------------------------------------------
+  Risk Profile: BALANCED
+  High Risk Decisions: 0
+  Medium Risk Decisions: 315
+  Low Risk Decisions: 685
+  Total Warnings: 313
+
+================================================================================

@@ -1,0 +1,57 @@
+EPISODE 169 POLICY REPORT
+================================================================================
+
+================================================================================
+RL AGENT POLICY ANALYSIS REPORT
+================================================================================
+Generated: 2025-11-07 13:55:09
+Total Decisions Analyzed: 48200
+
+1. ACTION DISTRIBUTION
+--------------------------------------------------------------------------------
+  Hold      :  877 times ( 87.7%) - Avg Confidence: -0.043
+  Buy       :   13 times (  1.3%) - Avg Confidence: -0.240
+  Sell      :  110 times ( 11.0%) - Avg Confidence: -0.089
+
+2. TOP INFLUENTIAL FEATURES
+--------------------------------------------------------------------------------
+   1. asset_sol                                - Importance: 0.242 (appeared 9161 times)
+   2. asset_dot                                - Importance: 0.226 (appeared 9912 times)
+   3. asset_eth                                - Importance: 0.193 (appeared 10773 times)
+   4. asset_btc                                - Importance: 0.187 (appeared 6058 times)
+   5. asset_ada                                - Importance: 0.159 (appeared 9256 times)
+   6. cci                                      - Importance: 0.121 (appeared 14364 times)
+   7. timeframe_1d                             - Importance: 0.121 (appeared 3947 times)
+   8. timeframe_4h                             - Importance: 0.102 (appeared 14543 times)
+   9. chaikin_osc                              - Importance: 0.099 (appeared 13917 times)
+  10. rsi_14                                   - Importance: 0.099 (appeared 14095 times)
+
+3. LEARNED POLICY RULES
+--------------------------------------------------------------------------------
+  • When Hold: key factors are asset_btc (imp: 28.53%), asset_ada (imp: 26.01%), asset_eth (imp: 24.30%)
+  • When Sell: key factors are asset_ada (imp: 20.67%), rsi_7 (imp: 14.53%), williams_r (imp: 11.14%)
+  • When Buy: key factors are asset_eth (imp: 18.95%), volume_ratio_capped (imp: 15.76%), cci (imp: 14.67%)
+
+4. DECISION CONFIDENCE ANALYSIS
+--------------------------------------------------------------------------------
+  Average Confidence: -0.051
+  Confidence Std Dev: 0.059
+  Average Q-Spread: 0.299
+  Low Confidence Decisions: 1000
+  Confidence Trend: decreasing
+
+5. BEHAVIORAL PATTERNS
+--------------------------------------------------------------------------------
+  • Tends to stay in Hold for up to 143 consecutive steps
+  • Tends to stay in Sell for up to 7 consecutive steps
+  • Most common transition: Hold -> Hold (796 times)
+
+6. RISK BEHAVIOR
+--------------------------------------------------------------------------------
+  Risk Profile: BALANCED
+  High Risk Decisions: 0
+  Medium Risk Decisions: 989
+  Low Risk Decisions: 11
+  Total Warnings: 989
+
+================================================================================

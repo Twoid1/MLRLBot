@@ -1,0 +1,56 @@
+EPISODE 2179 POLICY REPORT
+================================================================================
+
+================================================================================
+RL AGENT POLICY ANALYSIS REPORT
+================================================================================
+Generated: 2025-11-07 14:57:47
+Total Decisions Analyzed: 652475
+
+1. ACTION DISTRIBUTION
+--------------------------------------------------------------------------------
+  Hold      :  939 times ( 93.9%) - Avg Confidence: 0.002
+  Buy       :   34 times (  3.4%) - Avg Confidence: 0.156
+  Sell      :   27 times (  2.7%) - Avg Confidence: -0.142
+
+2. TOP INFLUENTIAL FEATURES
+--------------------------------------------------------------------------------
+   1. asset_dot                                - Importance: 0.205 (appeared 128790 times)
+   2. asset_btc                                - Importance: 0.203 (appeared 120973 times)
+   3. asset_sol                                - Importance: 0.198 (appeared 125886 times)
+   4. asset_eth                                - Importance: 0.180 (appeared 113895 times)
+   5. timeframe_1d                             - Importance: 0.140 (appeared 51554 times)
+   6. price_direction                          - Importance: 0.130 (appeared 271705 times)
+   7. timeframe_4h                             - Importance: 0.116 (appeared 148258 times)
+   8. asset_ada                                - Importance: 0.111 (appeared 113638 times)
+   9. rsi_14                                   - Importance: 0.105 (appeared 179388 times)
+  10. ultimate_oscillator                      - Importance: 0.104 (appeared 177126 times)
+
+3. LEARNED POLICY RULES
+--------------------------------------------------------------------------------
+  • When Hold: key factors are asset_eth (imp: 26.55%), price_direction (imp: 24.01%), volume_ratio_capped (imp: 14.46%)
+  • When Sell: key factors are asset_sol (imp: 31.71%), roc_10 (imp: 18.50%), stoch_k_d_diff (imp: 13.10%)
+  • When Buy: key factors are timeframe_1d (imp: 17.99%), asset_sol (imp: 14.61%), ultimate_oscillator (imp: 12.20%)
+
+4. DECISION CONFIDENCE ANALYSIS
+--------------------------------------------------------------------------------
+  Average Confidence: 0.003
+  Confidence Std Dev: 0.066
+  Average Q-Spread: 0.270
+  Low Confidence Decisions: 978
+  Confidence Trend: increasing
+
+5. BEHAVIORAL PATTERNS
+--------------------------------------------------------------------------------
+  • Tends to stay in Hold for up to 71 consecutive steps
+  • Most common transition: Hold -> Hold (878 times)
+
+6. RISK BEHAVIOR
+--------------------------------------------------------------------------------
+  Risk Profile: CONSERVATIVE
+  High Risk Decisions: 0
+  Medium Risk Decisions: 126
+  Low Risk Decisions: 874
+  Total Warnings: 126
+
+================================================================================
