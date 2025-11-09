@@ -617,14 +617,14 @@ class Backtester:
         # Process each timestep
         for i in range(100, len(data)):  # Start after warmup period
             current_time = data.index[i]
-            current_price = data.iloc[i]['close']
+            current_price = data.iloc[i]['open']
             
             # Generate signals
             signal = self._generate_signal(
                 symbol=symbol,
-                data=data.iloc[:i+1],
-                features=features.iloc[:i+1] if features is not None else None,
-                current_idx=i
+                data=data.iloc[:i],  # DON'T include current bar
+                features=features.iloc[:i] if features is not None else None,
+                current_idx=i-1  # Use previous index
             )
             
             results['signals'].append({
@@ -761,23 +761,10 @@ class Backtester:
         
         return 0
     
-    def _open_position(self,
-                      symbol: str,
-                      price: float,
-                      time: datetime,
-                      signal_strength: float = 1.0) -> Optional[Dict]:
-        """
-        Open a new position
+    def _open_position(self, symbol: str, price: float, time: datetime, 
+                    signal_strength: float = 1.0) -> Optional[Dict]:
+        """Open a new position with FIXED FRACTIONAL SIZING"""
         
-        Args:
-            symbol: Trading symbol
-            price: Entry price
-            time: Entry time
-            signal_strength: Signal strength for sizing
-            
-        Returns:
-            Position dictionary or None
-        """
         # Calculate position size
         if self.risk_manager:
             position_size = self.risk_manager.calculate_position_size(
@@ -785,17 +772,32 @@ class Backtester:
                 signal_strength=abs(signal_strength),
                 current_price=price,
                 volatility=self._calculate_volatility(symbol),
-                win_rate=0.5,  # Use historical win rate
+                win_rate=0.5,
                 avg_win=100,
                 avg_loss=50
             )
         else:
-            # Simple fixed position sizing
-            position_value = self.portfolio.cash_balance * self.config.position_size
+            # FIX: Use INITIAL capital, not current cash balance
+            reference_capital = self.portfolio.initial_capital
+            
+            # Optional: Allow some growth but cap it
+            # reference_capital = min(self.portfolio.total_value, 
+            #                        self.portfolio.initial_capital * 2.0)
+            
+            position_value = reference_capital * self.config.position_size
             position_size = position_value / price
+        
+        # ADD: Log position sizing for debugging
+        logger.debug(
+            f"Opening {symbol}: "
+            f"Portfolio=${self.portfolio.total_value:.2f}, "
+            f"Cash=${self.portfolio.cash_balance:.2f}, "
+            f"Position=${position_size * price:.2f} ({position_size:.4f} units)"
+        )
         
         # Check minimum trade amount
         if position_size * price < self.config.min_trade_amount:
+            logger.debug(f"Position too small: ${position_size * price:.2f} < ${self.config.min_trade_amount}")
             return None
         
         # Calculate stop-loss and take-profit
@@ -824,16 +826,18 @@ class Backtester:
                 'position_value': position_size * price
             }
             
-            logger.debug(f"Opened position: {symbol} @ {price:.2f}")
+            self.total_trades = getattr(self, 'total_trades', 0) + 1
+            
+            logger.info(f"Opened {symbol} @ ${price:.2f}, Size=${position_size * price:.2f}")
             return position
         
         return None
     
     def _close_position(self,
-                       position: Dict,
-                       price: float,
-                       time: datetime,
-                       reason: str = 'signal') -> Optional[Dict]:
+                    position: Dict,
+                    price: float,
+                    time: datetime,
+                    reason: str = 'signal') -> Optional[Dict]:
         """
         Close an existing position
         
@@ -875,7 +879,42 @@ class Backtester:
                 'duration': (time - position['entry_time']).total_seconds() / 3600  # Hours
             }
             
-            logger.debug(f"Closed position: {position['symbol']} @ {exit_price:.2f} - P&L: {trade['pnl']:.2f}")
+            # ========== NEW: UPDATE RISK MANAGER CAPITAL ==========
+            if self.risk_manager:
+                # Update risk manager with current portfolio value
+                current_portfolio_value = self.portfolio.total_value
+                
+                # Optional: Cap the capital growth to prevent exponential position sizing
+                # This limits position sizes even as portfolio grows
+                max_allowed_capital = self.portfolio.initial_capital * 2.0  # Max 2x growth
+                capped_capital = min(current_portfolio_value, max_allowed_capital)
+                
+                # Update risk manager
+                self.risk_manager.update_capital(capped_capital)
+                
+                logger.debug(f"Updated risk manager capital: ${capped_capital:.2f} "
+                            f"(actual portfolio: ${current_portfolio_value:.2f})")
+            
+            # ========== NEW: UPDATE TRADE STATISTICS ==========
+            # Track win/loss for future position sizing
+            if trade['pnl'] > 0:
+                self.consecutive_wins = getattr(self, 'consecutive_wins', 0) + 1
+                self.consecutive_losses = 0
+            else:
+                self.consecutive_losses = getattr(self, 'consecutive_losses', 0) + 1
+                self.consecutive_wins = 0
+            
+            # ========== NEW: LOG DETAILED TRADE INFO ==========
+            logger.info(
+                f"Closed {position['symbol']}: "
+                f"Entry=${position['entry_price']:.2f}, "
+                f"Exit=${exit_price:.2f}, "
+                f"P&L=${trade['pnl']:.2f} ({trade['return_pct']:.2%}), "
+                f"Duration={trade['duration']:.1f}h, "
+                f"Reason={reason}, "
+                f"Portfolio=${self.portfolio.total_value:.2f}"
+            )
+            
             return trade
         
         return None

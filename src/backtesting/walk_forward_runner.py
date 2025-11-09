@@ -372,7 +372,7 @@ class WalkForwardRunner:
         # Initialize
         balance = self.config['initial_balance']
         initial_balance = self.config['initial_balance']
-        max_position_value = initial_balance * 0.95
+        max_position_value = initial_balance * 0.10
         position = 0
         entry_price = 0
         trades = []
@@ -406,6 +406,8 @@ class WalkForwardRunner:
             
             # Trading logic
             if position == 0 and pred_up > 0.6:  # Buy signal
+                reference_capital = min(balance, initial_balance * 2.0)
+                max_position_value = reference_capital * 0.10
                 position = max_position_value / current_price
                 cost = position * current_price * (1 + self.config['fee'])
                 balance -= cost
@@ -611,7 +613,18 @@ class WalkForwardRunner:
             # Execute action
             if action == 1 and position == 0:  # BUY
                 # Use 95% of available balance
-                position = (balance * 0.95) / current_price
+                reference_capital = min(balance, initial_balance * 2.0)
+                position = (reference_capital * 0.10) / current_price
+                cost = position * current_price
+                fee = cost * self.config['fee']  # ✅ Define fee first!
+
+                if (cost + fee) > balance:  # ✅ Now we can use it
+                    position = (balance * 0.95) / current_price
+                    cost = position * current_price
+                    fee = cost * self.config['fee'] 
+                # Fallback if not enough cash
+                if (position * current_price * (1 + fee)) > balance:
+                    position = (balance * 0.95) / current_price
                 cost = position * current_price
                 fee = cost * self.config['fee']
                 total_fees_paid += fee  # ✅ TRACK FEES
@@ -826,7 +839,10 @@ class WalkForwardRunner:
         # ========================================================================
         # PART 1: Market features (50 dims)
         # ========================================================================
-        current_features = features.iloc[i].values[:50]
+        if i > 0:
+            current_features = features.iloc[i-1].values[:50]
+        else:
+            current_features = np.zeros(50)
         if len(current_features) < 50:
             padding = np.zeros(50 - len(current_features))
             current_features = np.concatenate([current_features, padding])

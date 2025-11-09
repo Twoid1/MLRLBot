@@ -1372,11 +1372,11 @@ class TradingEnvironment:
         # PART 5: Asset encoding (5 dimensions)
         # ========================================================================
         feature_names.extend([
-            'asset_btc',    # 1.0 if BTC/USD
-            'asset_eth',    # 1.0 if ETH/USD
-            'asset_sol',    # 1.0 if SOL/USD
-            'asset_ada',    # 1.0 if ADA/USD
-            'asset_dot',    # 1.0 if DOT/USD
+            'asset_eth',    # 1.0 if BTC/USD
+            'asset_sol',    # 1.0 if ETH/USD
+            'asset_dot',    # 1.0 if SOL/USD
+            'asset_avax',    # 1.0 if ADA/USD
+            'asset_ada',    # 1.0 if DOT/USD
         ])
         
         # ========================================================================
