@@ -122,7 +122,7 @@ class SystemTrainer:
             
             # RL settings - ⚡ OPTIMIZED
             'rl_episodes': 1000,
-            'rl_hidden_dims': [256, 256, 128],
+            'rl_hidden_dims': [128, 64],
             'rl_batch_size': 256,
             'rl_learning_rate': 0.0001,
             'rl_gamma': 0.99,

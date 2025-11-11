@@ -1,0 +1,588 @@
+====================================================================================================
+RL TRAINING COMPLETE - COMPREHENSIVE PERFORMANCE REPORT
+====================================================================================================
+Generated: 2025-11-09 17:19:37
+
+====================================================================================================
+1. TRAINING CONFIGURATION
+====================================================================================================
+Episodes Trained:          2500
+Steps per Episode:         {'1h': 500, '4h': 300, '1d': 100}
+Initial Balance:           $10,000.00
+Fee Rate:                  0.26%
+Network Architecture:      [128, 64]
+Batch Size:                64
+Learning Rate:             0.0001
+Gamma (Discount):          0.99
+Double DQN:                True
+Dueling DQN:               True
+
+====================================================================================================
+2. TRAINING PROGRESS
+====================================================================================================
+OVERALL PERFORMANCE:
+  Total Episodes:          2500
+  Avg Reward:              4.88
+  Best Reward:             71.30 (Episode 2369)
+  Worst Reward:            -47.07 (Episode 2)
+  Reward Std Dev:          12.75
+  Avg Final Portfolio:     $10,487.72
+  Best Final Portfolio:    $17,129.63
+
+ CONSISTENCY CHECK:
+  Avg Reward:              4.88
+  Expected from Portfolio: 4.88
+  Difference:              0.00
+  Status:                   EXCELLENT - Rewards match portfolio growth!
+
+====================================================================================================
+2.5 VALIDATION SUMMARY
+====================================================================================================
+VALIDATION CHECKS:
+  Reward Consistency......................  PASS
+  Portfolio Realistic.....................  PASS
+  Position Sizes..........................  PASS
+  Fee Calculation.........................  PASS
+  Trade Counts............................  PASS
+
+ ALL VALIDATION CHECKS PASSED!
+   Training results appear consistent and realistic.
+
+====================================================================================================
+3. EPISODE PERFORMANCE ANALYSIS
+====================================================================================================
+Phase 1 (Early Learning):
+  Episodes:                625
+  Avg Reward:              1.26
+  Avg Portfolio:           $10,125.87
+  Best Reward:             70.21
+  Worst Reward:            -47.07
+
+Phase 2 (Exploration):
+  Episodes:                625
+  Avg Reward:              6.06
+  Avg Portfolio:           $10,606.41
+  Best Reward:             63.91
+  Worst Reward:            -25.14
+
+Phase 3 (Refinement):
+  Episodes:                625
+  Avg Reward:              6.04
+  Avg Portfolio:           $10,604.35
+  Best Reward:             67.11
+  Worst Reward:            -26.41
+
+Phase 4 (Convergence):
+  Episodes:                625
+  Avg Reward:              6.14
+  Avg Portfolio:           $10,614.25
+  Best Reward:             71.30
+  Worst Reward:            -15.33
+
+LEARNING TREND:
+  First 10 Episodes Avg:   -9.20
+  Last 10 Episodes Avg:    4.38
+  Improvement:             +147.6%
+  Status:                    Strong improvement - agent is learning well!
+
+====================================================================================================
+4. TRADING BEHAVIOR ANALYSIS
+====================================================================================================
+TRADING STATISTICS (Across All Episodes):
+  Total Trades:            22705
+  Winning Trades:          6666
+  Losing Trades:           4260
+  Win Rate:                29.4%
+  Avg Trades per Episode:  9.1
+
+RISK/REWARD METRICS:
+  Profitable Episodes:     1371 (54.8%)
+  Losing Episodes:         1129 (45.2%)
+  Avg Profit (when win):   11.47
+  Avg Loss (when lose):    -3.13
+
+====================================================================================================
+5. LEARNING PROGRESS
+====================================================================================================
+EXPLORATION vs EXPLOITATION:
+  Starting Epsilon:        0.324 (100% random actions)
+  Final Epsilon:           0.010 (1.0% random actions)
+  Epsilon Decay:            Proper decay curve
+
+REWARD PROGRESSION (10-Episode Windows):
+  Episodes   1- 10:     Avg Reward =    -9.20
+  Episodes  11- 20:     Avg Reward =    -5.61
+  Episodes  21- 30:     Avg Reward =    -0.20
+  Episodes  31- 40:     Avg Reward =    -1.51
+  Episodes  41- 50:     Avg Reward =    -0.17
+  Episodes  51- 60:     Avg Reward =    -4.49
+  Episodes  61- 70:     Avg Reward =     0.05
+  Episodes  71- 80:     Avg Reward =    -2.74
+  Episodes  81- 90:     Avg Reward =    -5.48
+  Episodes  91-100:     Avg Reward =    -0.30
+  Episodes 101-110:     Avg Reward =    -2.58
+  Episodes 111-120:     Avg Reward =     4.93
+  Episodes 121-130:     Avg Reward =    -0.13
+  Episodes 131-140:     Avg Reward =    -1.30
+  Episodes 141-150:     Avg Reward =     1.61
+  Episodes 151-160:     Avg Reward =     8.18
+  Episodes 161-170:     Avg Reward =    -0.61
+  Episodes 171-180:     Avg Reward =    -3.17
+  Episodes 181-190:     Avg Reward =    -0.43
+  Episodes 191-200:     Avg Reward =    -0.76
+  Episodes 201-210:     Avg Reward =    -3.37
+  Episodes 211-220:     Avg Reward =    -2.44
+  Episodes 221-230:     Avg Reward =    -0.01
+  Episodes 231-240:     Avg Reward =    -1.11
+  Episodes 241-250:     Avg Reward =    -1.48
+  Episodes 251-260:     Avg Reward =    -1.14
+  Episodes 261-270:     Avg Reward =     0.12
+  Episodes 271-280:     Avg Reward =     1.88
+  Episodes 281-290:     Avg Reward =     0.05
+  Episodes 291-300:     Avg Reward =     0.66
+  Episodes 301-310:     Avg Reward =     1.48
+  Episodes 311-320:     Avg Reward =     4.70
+  Episodes 321-330:     Avg Reward =     2.11
+  Episodes 331-340:     Avg Reward =    -1.09
+  Episodes 341-350:     Avg Reward =     6.92
+  Episodes 351-360:     Avg Reward =     2.26
+  Episodes 361-370:     Avg Reward =     2.20
+  Episodes 371-380:     Avg Reward =     3.16
+  Episodes 381-390:     Avg Reward =     0.00
+  Episodes 391-400:     Avg Reward =    -0.39
+  Episodes 401-410:     Avg Reward =     8.37
+  Episodes 411-420:     Avg Reward =     1.27
+  Episodes 421-430:     Avg Reward =     1.56
+  Episodes 431-440:     Avg Reward =     1.71
+  Episodes 441-450:     Avg Reward =     1.98
+  Episodes 451-460:     Avg Reward =     8.16
+  Episodes 461-470:     Avg Reward =     1.26
+  Episodes 471-480:     Avg Reward =     5.25
+  Episodes 481-490:     Avg Reward =     0.69
+  Episodes 491-500:     Avg Reward =     1.92
+  Episodes 501-510:     Avg Reward =     3.95
+  Episodes 511-520:     Avg Reward =     5.32
+  Episodes 521-530:     Avg Reward =     7.64
+  Episodes 531-540:     Avg Reward =     3.60
+  Episodes 541-550:     Avg Reward =    15.43
+  Episodes 551-560:     Avg Reward =     2.77
+  Episodes 561-570:     Avg Reward =     4.22
+  Episodes 571-580:     Avg Reward =     1.12
+  Episodes 581-590:     Avg Reward =     3.22
+  Episodes 591-600:     Avg Reward =     6.74
+  Episodes 601-610:     Avg Reward =     1.27
+  Episodes 611-620:     Avg Reward =     1.98
+  Episodes 621-630:     Avg Reward =    -0.46
+  Episodes 631-640:     Avg Reward =     7.03
+  Episodes 641-650:     Avg Reward =     7.94
+  Episodes 651-660:     Avg Reward =     2.83
+  Episodes 661-670:     Avg Reward =     2.84
+  Episodes 671-680:     Avg Reward =     6.47
+  Episodes 681-690:     Avg Reward =     4.80
+  Episodes 691-700:     Avg Reward =     1.96
+  Episodes 701-710:     Avg Reward =     4.98
+  Episodes 711-720:     Avg Reward =     3.52
+  Episodes 721-730:     Avg Reward =     4.52
+  Episodes 731-740:     Avg Reward =     5.39
+  Episodes 741-750:     Avg Reward =    -1.17
+  Episodes 751-760:     Avg Reward =     4.07
+  Episodes 761-770:     Avg Reward =     0.48
+  Episodes 771-780:     Avg Reward =     1.84
+  Episodes 781-790:     Avg Reward =     5.18
+  Episodes 791-800:     Avg Reward =     5.87
+  Episodes 801-810:     Avg Reward =    13.22
+  Episodes 811-820:     Avg Reward =    12.08
+  Episodes 821-830:     Avg Reward =    11.01
+  Episodes 831-840:     Avg Reward =     4.42
+  Episodes 841-850:     Avg Reward =     5.87
+  Episodes 851-860:     Avg Reward =     7.65
+  Episodes 861-870:     Avg Reward =     4.25
+  Episodes 871-880:     Avg Reward =     4.36
+  Episodes 881-890:     Avg Reward =     4.63
+  Episodes 891-900:     Avg Reward =     4.27
+  Episodes 901-910:     Avg Reward =     4.21
+  Episodes 911-920:     Avg Reward =     0.94
+  Episodes 921-930:     Avg Reward =    15.01
+  Episodes 931-940:     Avg Reward =     6.16
+  Episodes 941-950:     Avg Reward =     3.47
+  Episodes 951-960:     Avg Reward =     1.45
+  Episodes 961-970:     Avg Reward =     5.29
+  Episodes 971-980:     Avg Reward =    10.58
+  Episodes 981-990:     Avg Reward =    10.48
+  Episodes 991-1000:     Avg Reward =     4.65
+  Episodes 1001-1010:     Avg Reward =     3.88
+  Episodes 1011-1020:     Avg Reward =     4.02
+  Episodes 1021-1030:     Avg Reward =     2.53
+  Episodes 1031-1040:     Avg Reward =     3.79
+  Episodes 1041-1050:     Avg Reward =    10.09
+  Episodes 1051-1060:     Avg Reward =     3.07
+  Episodes 1061-1070:     Avg Reward =     7.78
+  Episodes 1071-1080:     Avg Reward =    12.08
+  Episodes 1081-1090:     Avg Reward =    18.58
+  Episodes 1091-1100:     Avg Reward =     9.87
+  Episodes 1101-1110:     Avg Reward =     9.71
+  Episodes 1111-1120:     Avg Reward =     5.71
+  Episodes 1121-1130:     Avg Reward =     6.33
+  Episodes 1131-1140:     Avg Reward =    12.47
+  Episodes 1141-1150:     Avg Reward =     5.72
+  Episodes 1151-1160:     Avg Reward =     4.43
+  Episodes 1161-1170:     Avg Reward =     6.62
+  Episodes 1171-1180:     Avg Reward =     5.76
+  Episodes 1181-1190:     Avg Reward =    12.61
+  Episodes 1191-1200:     Avg Reward =    -1.24
+  Episodes 1201-1210:     Avg Reward =     6.46
+  Episodes 1211-1220:     Avg Reward =     2.48
+  Episodes 1221-1230:     Avg Reward =    13.36
+  Episodes 1231-1240:     Avg Reward =     3.36
+  Episodes 1241-1250:     Avg Reward =     6.13
+  Episodes 1251-1260:     Avg Reward =     8.90
+  Episodes 1261-1270:     Avg Reward =    10.22
+  Episodes 1271-1280:     Avg Reward =     2.32
+  Episodes 1281-1290:     Avg Reward =     6.74
+  Episodes 1291-1300:     Avg Reward =     7.02
+  Episodes 1301-1310:     Avg Reward =    -0.88
+  Episodes 1311-1320:     Avg Reward =     0.50
+  Episodes 1321-1330:     Avg Reward =     5.21
+  Episodes 1331-1340:     Avg Reward =     6.99
+  Episodes 1341-1350:     Avg Reward =     8.50
+  Episodes 1351-1360:     Avg Reward =     4.95
+  Episodes 1361-1370:     Avg Reward =     6.03
+  Episodes 1371-1380:     Avg Reward =     8.58
+  Episodes 1381-1390:     Avg Reward =    11.37
+  Episodes 1391-1400:     Avg Reward =    14.22
+  Episodes 1401-1410:     Avg Reward =     2.48
+  Episodes 1411-1420:     Avg Reward =    10.14
+  Episodes 1421-1430:     Avg Reward =     0.60
+  Episodes 1431-1440:     Avg Reward =     4.68
+  Episodes 1441-1450:     Avg Reward =     4.58
+  Episodes 1451-1460:     Avg Reward =     9.15
+  Episodes 1461-1470:     Avg Reward =     1.09
+  Episodes 1471-1480:     Avg Reward =     2.72
+  Episodes 1481-1490:     Avg Reward =    11.93
+  Episodes 1491-1500:     Avg Reward =     8.51
+  Episodes 1501-1510:     Avg Reward =     5.00
+  Episodes 1511-1520:     Avg Reward =     5.41
+  Episodes 1521-1530:     Avg Reward =     6.76
+  Episodes 1531-1540:     Avg Reward =    -0.79
+  Episodes 1541-1550:     Avg Reward =     2.47
+  Episodes 1551-1560:     Avg Reward =     9.18
+  Episodes 1561-1570:     Avg Reward =     5.50
+  Episodes 1571-1580:     Avg Reward =     4.22
+  Episodes 1581-1590:     Avg Reward =     7.40
+  Episodes 1591-1600:     Avg Reward =    10.83
+  Episodes 1601-1610:     Avg Reward =     3.16
+  Episodes 1611-1620:     Avg Reward =    11.32
+  Episodes 1621-1630:     Avg Reward =    10.78
+  Episodes 1631-1640:     Avg Reward =     5.15
+  Episodes 1641-1650:     Avg Reward =     0.36
+  Episodes 1651-1660:     Avg Reward =     6.92
+  Episodes 1661-1670:     Avg Reward =    10.88
+  Episodes 1671-1680:     Avg Reward =     4.00
+  Episodes 1681-1690:     Avg Reward =     1.90
+  Episodes 1691-1700:     Avg Reward =     4.31
+  Episodes 1701-1710:     Avg Reward =     3.70
+  Episodes 1711-1720:     Avg Reward =    -1.35
+  Episodes 1721-1730:     Avg Reward =     9.92
+  Episodes 1731-1740:     Avg Reward =     5.81
+  Episodes 1741-1750:     Avg Reward =     8.05
+  Episodes 1751-1760:     Avg Reward =    -0.59
+  Episodes 1761-1770:     Avg Reward =     8.27
+  Episodes 1771-1780:     Avg Reward =     4.29
+  Episodes 1781-1790:     Avg Reward =     4.78
+  Episodes 1791-1800:     Avg Reward =     3.94
+  Episodes 1801-1810:     Avg Reward =     6.37
+  Episodes 1811-1820:     Avg Reward =    12.20
+  Episodes 1821-1830:     Avg Reward =     9.81
+  Episodes 1831-1840:     Avg Reward =     4.43
+  Episodes 1841-1850:     Avg Reward =    11.97
+  Episodes 1851-1860:     Avg Reward =     7.02
+  Episodes 1861-1870:     Avg Reward =     9.69
+  Episodes 1871-1880:     Avg Reward =     5.15
+  Episodes 1881-1890:     Avg Reward =     2.07
+  Episodes 1891-1900:     Avg Reward =     3.30
+  Episodes 1901-1910:     Avg Reward =     4.57
+  Episodes 1911-1920:     Avg Reward =    -1.18
+  Episodes 1921-1930:     Avg Reward =     7.59
+  Episodes 1931-1940:     Avg Reward =     2.62
+  Episodes 1941-1950:     Avg Reward =     3.60
+  Episodes 1951-1960:     Avg Reward =     2.43
+  Episodes 1961-1970:     Avg Reward =    -2.48
+  Episodes 1971-1980:     Avg Reward =     2.35
+  Episodes 1981-1990:     Avg Reward =     5.73
+  Episodes 1991-2000:     Avg Reward =     6.43
+  Episodes 2001-2010:     Avg Reward =     9.80
+  Episodes 2011-2020:     Avg Reward =    11.42
+  Episodes 2021-2030:     Avg Reward =    11.28
+  Episodes 2031-2040:     Avg Reward =    13.00
+  Episodes 2041-2050:     Avg Reward =     7.16
+  Episodes 2051-2060:     Avg Reward =     7.76
+  Episodes 2061-2070:     Avg Reward =     0.57
+  Episodes 2071-2080:     Avg Reward =     8.84
+  Episodes 2081-2090:     Avg Reward =     2.80
+  Episodes 2091-2100:     Avg Reward =     9.21
+  Episodes 2101-2110:     Avg Reward =     9.05
+  Episodes 2111-2120:     Avg Reward =    15.57
+  Episodes 2121-2130:     Avg Reward =    10.18
+  Episodes 2131-2140:     Avg Reward =     2.76
+  Episodes 2141-2150:     Avg Reward =    14.25
+  Episodes 2151-2160:     Avg Reward =     3.60
+  Episodes 2161-2170:     Avg Reward =    10.21
+  Episodes 2171-2180:     Avg Reward =     5.37
+  Episodes 2181-2190:     Avg Reward =     1.46
+  Episodes 2191-2200:     Avg Reward =     4.83
+  Episodes 2201-2210:     Avg Reward =     3.76
+  Episodes 2211-2220:     Avg Reward =     3.64
+  Episodes 2221-2230:     Avg Reward =     9.31
+  Episodes 2231-2240:     Avg Reward =    15.23
+  Episodes 2241-2250:     Avg Reward =     4.29
+  Episodes 2251-2260:     Avg Reward =     5.10
+  Episodes 2261-2270:     Avg Reward =     3.42
+  Episodes 2271-2280:     Avg Reward =     3.69
+  Episodes 2281-2290:     Avg Reward =     4.02
+  Episodes 2291-2300:     Avg Reward =     5.15
+  Episodes 2301-2310:     Avg Reward =     2.53
+  Episodes 2311-2320:     Avg Reward =     0.51
+  Episodes 2321-2330:     Avg Reward =     3.29
+  Episodes 2331-2340:     Avg Reward =     3.80
+  Episodes 2341-2350:     Avg Reward =     3.38
+  Episodes 2351-2360:     Avg Reward =     3.92
+  Episodes 2361-2370:     Avg Reward =    10.38
+  Episodes 2371-2380:     Avg Reward =     2.76
+  Episodes 2381-2390:     Avg Reward =     4.74
+  Episodes 2391-2400:     Avg Reward =     8.42
+  Episodes 2401-2410:     Avg Reward =    13.63
+  Episodes 2411-2420:     Avg Reward =     4.01
+  Episodes 2421-2430:     Avg Reward =     8.20
+  Episodes 2431-2440:     Avg Reward =     7.10
+  Episodes 2441-2450:     Avg Reward =     4.68
+  Episodes 2451-2460:     Avg Reward =    13.20
+  Episodes 2461-2470:     Avg Reward =     4.02
+  Episodes 2471-2480:     Avg Reward =    11.11
+  Episodes 2481-2490:     Avg Reward =     9.06
+  Episodes 2491-2500:     Avg Reward =     4.38
+
+====================================================================================================
+6. FINAL EVALUATION
+====================================================================================================
+EVALUATION RUN (Trained Agent):
+  Total Reward:            63.24
+  Final Portfolio Value:   $16,324.19
+  Total Trades:            50
+  Win Rate:                68.0%
+  Max Drawdown:            8.07%
+  Sharpe Ratio:            0.27
+
+ACTION DISTRIBUTION:
+  HOLD  : 23232 times ( 84.7%)
+  BUY   : 2741 times ( 10.0%)
+  SELL  : 1448 times (  5.3%)
+
+====================================================================================================
+7. TOP 5 BEST EPISODES
+====================================================================================================
+
+ RANK #1 - Episode 2369:
+  Total Reward:            71.30
+  Final Portfolio:         $17,129.63
+  Trades Executed:         40
+  Win Rate:                70.0%
+  Max Drawdown:            8.80%
+  Epsilon:                 0.010
+
+ RANK #2 - Episode 157:
+  Total Reward:            70.21
+  Final Portfolio:         $17,020.82
+  Trades Executed:         26
+  Win Rate:                84.6%
+  Max Drawdown:            7.62%
+  Epsilon:                 0.010
+
+ RANK #3 - Episode 2057:
+  Total Reward:            69.35
+  Final Portfolio:         $16,935.01
+  Trades Executed:         28
+  Win Rate:                85.7%
+  Max Drawdown:            4.62%
+  Epsilon:                 0.010
+
+ RANK #4 - Episode 2076:
+  Total Reward:            68.48
+  Final Portfolio:         $16,848.16
+  Trades Executed:         26
+  Win Rate:                92.3%
+  Max Drawdown:            4.84%
+  Epsilon:                 0.010
+
+ RANK #5 - Episode 541:
+  Total Reward:            67.86
+  Final Portfolio:         $16,785.62
+  Trades Executed:         28
+  Win Rate:                85.7%
+  Max Drawdown:            4.60%
+  Epsilon:                 0.010
+
+====================================================================================================
+8. TOP 10 MOST PROFITABLE TRADES
+====================================================================================================
+
+ Analyzed 10926 completed trades across all episodes
+
+================================================================================
+RANK #1
+================================================================================
+  Episode:                 #1453
+  Asset:                   ADA_USDT
+  Timestamp:               2021-05-19 14:00:00
+  Action:                  SELL
+  Price:                   $1.46
+  Size:                    10852.192953
+  PnL:                     $2,409.15 
+  Fees Paid:               $41.15
+  Net Profit:              $2,367.99
+
+================================================================================
+RANK #2
+================================================================================
+  Episode:                 #2113
+  Asset:                   ADA_USDT
+  Timestamp:               2021-05-19 14:00:00
+  Action:                  SELL
+  Price:                   $1.46
+  Size:                    10655.692528
+  PnL:                     $2,365.52 
+  Fees Paid:               $40.41
+  Net Profit:              $2,325.12
+
+================================================================================
+RANK #3
+================================================================================
+  Episode:                 #2451
+  Asset:                   ADA_USDT
+  Timestamp:               2021-05-23 21:00:00
+  Action:                  SELL
+  Price:                   $1.27
+  Size:                    12621.682935
+  PnL:                     $1,866.40 
+  Fees Paid:               $41.61
+  Net Profit:              $1,824.80
+
+================================================================================
+RANK #4
+================================================================================
+  Episode:                 #513
+  Asset:                   SOL_USDT
+  Timestamp:               2023-07-14 01:00:00
+  Action:                  SELL
+  Price:                   $29.25
+  Size:                    409.519469
+  PnL:                     $1,564.09 
+  Fees Paid:               $31.14
+  Net Profit:              $1,532.95
+
+================================================================================
+RANK #5
+================================================================================
+  Episode:                 #2057
+  Asset:                   SOL_USDT
+  Timestamp:               2022-06-19 11:00:00
+  Action:                  SELL
+  Price:                   $32.59
+  Size:                    497.267553
+  PnL:                     $1,523.25 
+  Fees Paid:               $42.13
+  Net Profit:              $1,481.12
+
+================================================================================
+RANK #6
+================================================================================
+  Episode:                 #341
+  Asset:                   SOL_USDT
+  Timestamp:               2023-07-14 01:00:00
+  Action:                  SELL
+  Price:                   $29.25
+  Size:                    385.112632
+  PnL:                     $1,470.88 
+  Fees Paid:               $29.29
+  Net Profit:              $1,441.59
+
+================================================================================
+RANK #7
+================================================================================
+  Episode:                 #2369
+  Asset:                   ADA_USDT
+  Timestamp:               2021-02-26 17:00:00
+  Action:                  SELL
+  Price:                   $1.23
+  Size:                    13309.873634
+  PnL:                     $1,452.07 
+  Fees Paid:               $42.60
+  Net Profit:              $1,409.46
+
+================================================================================
+RANK #8
+================================================================================
+  Episode:                 #1108
+  Asset:                   ADA_USDT
+  Timestamp:               2021-01-30 17:00:00
+  Action:                  SELL
+  Price:                   $0.38
+  Size:                    40665.595283
+  PnL:                     $1,437.81 
+  Fees Paid:               $39.79
+  Net Profit:              $1,398.02
+
+================================================================================
+RANK #9
+================================================================================
+  Episode:                 #1071
+  Asset:                   SOL_USDT
+  Timestamp:               2022-11-14 07:00:00
+  Action:                  SELL
+  Price:                   $14.52
+  Size:                    762.543356
+  PnL:                     $1,422.24 
+  Fees Paid:               $28.78
+  Net Profit:              $1,393.46
+
+================================================================================
+RANK #10
+================================================================================
+  Episode:                 #2022
+  Asset:                   SOL_USDT
+  Timestamp:               2022-11-14 07:00:00
+  Action:                  SELL
+  Price:                   $14.52
+  Size:                    751.256680
+  PnL:                     $1,401.19 
+  Fees Paid:               $28.35
+  Net Profit:              $1,372.84
+
+
+================================================================================
+TRADE STATISTICS SUMMARY
+================================================================================
+  Total Completed Trades:  10926
+  Winning Trades:          6666 (61.0%)
+  Losing Trades:           4260 (39.0%)
+  Total PnL:               $1,450,152.70
+  Total Fees:              $289,707.07
+  Net PnL:                 $1,160,445.63
+  Avg Win Size:            $362.31
+  Avg Loss Size:           $-226.53
+  Profit Factor:           2.50
+
+====================================================================================================
+9. RECOMMENDATIONS
+====================================================================================================
+TRAINING ANALYSIS:
+   Agent appears to have converged
+   Consider deploying to paper trading
+   Agent showing positive rewards
+   Good candidate for live testing
+   Exploration has decayed properly
+
+NEXT STEPS:
+  1. Review top performing trades and patterns
+  2. Test agent on different market conditions
+  3. Consider walk-forward validation
+  4. Start paper trading if performance is consistent

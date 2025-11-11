@@ -5,7 +5,7 @@ OPTIMIZED Training System - 10-20x Speed Improvement + EXPLAINABILITY
 - Vectorized feature calculations
 - Progress tracking with live updates
 - Memory optimization
-- ⭐ NEW: Explainability system to understand agent decisions
+- â­ NEW: Explainability system to understand agent decisions
 """
 
 import pandas as pd
@@ -36,7 +36,7 @@ try:
 except ImportError:
     GPU_AVAILABLE = False
 
-# ⭐ NEW: Explainability import
+# â­ NEW: Explainability import
 from src.explainability_integration import ExplainableRL
 
 logger = logging.getLogger(__name__)
@@ -121,7 +121,7 @@ class OptimizedSystemTrainer:
     """
     Ultra-fast training system with parallel processing and GPU acceleration
     Target: 4-6 hour total training time (down from 2 days)
-    ⭐ NEW: With explainability to understand agent decisions
+    â­ NEW: With explainability to understand agent decisions
     """
     
     def __init__(self, config_path: Optional[str] = None):
@@ -148,7 +148,7 @@ class OptimizedSystemTrainer:
         self.ml_predictor = None  # Initialize as None
         self.rl_agent = None 
         
-        # ⭐ NEW: Explainability
+        # â­ NEW: Explainability
         self.explainer = None
         
         # Training results
@@ -209,17 +209,33 @@ class OptimizedSystemTrainer:
                 '4h': 300,
                 '1d': 100
             },
+            # âš¡ OVERFITTING FIX: Variable episode lengths prevent temporal memorization
+            'variable_episode_length': True,
+            'episode_length_range': {
+                '1h': [200, 500],
+                '4h': [150, 300],
+                '1d': [50, 100]
+            },
             'rl_episodes': 2500,
-            'rl_hidden_dims': [256, 256, 128],
+            # âš¡ OVERFITTING FIX: Smaller network (was [256, 256, 128] = 99k params)
+            'rl_hidden_dims': [128, 64],  # ~15k parameters - prevents memorization
             'use_double_dqn': True,
             'use_dueling_dqn': True,
-            'rl_batch_size': 1024,  # Larger for GPU
+            # âš¡ OVERFITTING FIX: Smaller batches for better generalization  
+            'rl_batch_size': 512,  # Was 1024 - more frequent, stochastic updates
             'rl_update_frequency': 4,  # Update every N steps (faster)
-            'rl_memory_size': 100000,
+            # âš¡ OVERFITTING FIX: Smaller memory (was 100k)
+            'rl_memory_size': 20000,  # Focus on recent, relevant experiences
             
             # Progress tracking
             'log_interval': 10,  # Log every N episodes
             'save_interval': 50,  # Save checkpoint every N episodes
+            
+            # âš¡ OVERFITTING FIX: Validation monitoring and early stopping
+            'validation_frequency': 50,  # Validate every N episodes
+            'early_stopping_patience': 99999,  # Stop if no improvement for N validations
+            'early_stopping_min_delta': 0.01,  # Minimum improvement threshold
+            'validation_episodes': 20,  # Number of episodes to run for validation
             
             # Environment
             'initial_balance': 10000,
@@ -228,7 +244,7 @@ class OptimizedSystemTrainer:
             'stop_loss': 0.03,
             'take_profit': 0.05,
             
-            # ⭐ NEW: Explainability settings
+            # â­ NEW: Explainability settings
             'explainability': {
                 'enabled': False,
                 'verbose': False,
@@ -249,7 +265,7 @@ class OptimizedSystemTrainer:
         Optimized complete training pipeline
         Target: 4-6 hours (vs 2 days original)
         
-        ✅ FIXED: When train_rl=True but train_ml=False, will either:
+        âœ… FIXED: When train_rl=True but train_ml=False, will either:
         1. Load existing ML model, OR
         2. Quick train ML just for feature selection
         """
@@ -648,7 +664,7 @@ class OptimizedSystemTrainer:
         """
         Train RL agent on multiple assets and timeframes WITH EXPLAINABILITY
         
-        ⭐ MODIFIED: Now includes explainability system
+        â­ MODIFIED: Now includes explainability system
         """
         from src.models.dqn_agent import DQNAgent, DQNConfig
         from src.environment.trading_env import TradingEnvironment
@@ -706,7 +722,7 @@ class OptimizedSystemTrainer:
         
         logger.info(f"\n Loaded {len(training_combinations)} asset-timeframe combinations")
         logger.info(f"  Total training data: {sum(len(c['ohlcv']) for c in training_combinations):,} candles")
-        logger.info(f"  Feature calculation time: {feature_calc_time:.2f}s (reused from ML stage!) 🚀")
+        logger.info(f"  Feature calculation time: {feature_calc_time:.2f}s (reused from ML stage!) ðŸš€")
         
         # [STEP 2: Initialize agent - UNCHANGED]
         logger.info("\n[2/5] Initializing universal trading agent...")
@@ -742,7 +758,7 @@ class OptimizedSystemTrainer:
         logger.info(f"  Network: {self.config['rl_hidden_dims']}")
         logger.info(f"  Device: {self.rl_agent.device}")
         
-        # ⭐ NEW: Initialize explainer if enabled
+        # â­ NEW: Initialize explainer if enabled
         if self.config['explainability']['enabled']:
             logger.info("\n  Setting up explainability system...")
             
@@ -832,7 +848,7 @@ class OptimizedSystemTrainer:
                 environments, total_episodes
             )
         
-        # ⭐ NEW: Generate explainability report if enabled
+        # â­ NEW: Generate explainability report if enabled
         if self.explainer:
             logger.info("\n" + "="*80)
             logger.info("GENERATING EXPLAINABILITY REPORT")
@@ -946,6 +962,30 @@ class OptimizedSystemTrainer:
                 
                 if (episode + 1) % 20 == 0:
                     self._log_progress(episode_results[-20:], episode + 1, total_episodes)
+
+                # âš¡ OVERFITTING FIX: Validation monitoring and early stopping
+                if (episode + 1) % self.config.get('validation_frequency', 50) == 0:
+                    val_results = self._run_validation(environments, episode + 1)
+                    
+                    # Check for improvement (early stopping)
+                    if hasattr(self, 'best_val_reward'):
+                        improvement = val_results['avg_reward'] - self.best_val_reward
+                        if improvement > self.config.get('early_stopping_min_delta', 0.01):
+                            self.best_val_reward = val_results['avg_reward']
+                            self.patience_counter = 0
+                            logger.info(f"   VALIDATION IMPROVED: {val_results['avg_reward']:.2f} (+{improvement:.2f})")
+                        else:
+                            self.patience_counter += 1
+                            logger.info(f"   No significant improvement (patience: {self.patience_counter}/{self.config.get('early_stopping_patience', 5)})")
+                            
+                            if self.patience_counter >= self.config.get('early_stopping_patience', 5):
+                                logger.info("  EARLY STOPPING: Validation performance not improving")
+                                break
+                    else:
+                        self.best_val_reward = val_results['avg_reward']
+                        self.patience_counter = 0
+                        logger.info(f"  Initial validation reward: {val_results['avg_reward']:.2f}")
+
         
         return episode_results
 
@@ -981,21 +1021,113 @@ class OptimizedSystemTrainer:
                 
                 if (episode + 1) % 20 == 0:
                     self._log_progress(episode_results[-20:], episode + 1, total_episodes)
+
+                # âš¡ OVERFITTING FIX: Validation monitoring and early stopping
+                if (episode + 1) % self.config.get('validation_frequency', 50) == 0:
+                    val_results = self._run_validation(environments, episode + 1)
+                    
+                    # Check for improvement (early stopping)
+                    if hasattr(self, 'best_val_reward'):
+                        improvement = val_results['avg_reward'] - self.best_val_reward
+                        if improvement > self.config.get('early_stopping_min_delta', 0.01):
+                            self.best_val_reward = val_results['avg_reward']
+                            self.patience_counter = 0
+                            logger.info(f"   VALIDATION IMPROVED: {val_results['avg_reward']:.2f} (+{improvement:.2f})")
+                        else:
+                            self.patience_counter += 1
+                            logger.info(f"   No significant improvement (patience: {self.patience_counter}/{self.config.get('early_stopping_patience', 5)})")
+                            
+                            if self.patience_counter >= self.config.get('early_stopping_patience', 5):
+                                logger.info("  EARLY STOPPING: Validation performance not improving")
+                                break
+                    else:
+                        self.best_val_reward = val_results['avg_reward']
+                        self.patience_counter = 0
+                        logger.info(f"  Initial validation reward: {val_results['avg_reward']:.2f}")
+
         
         return episode_results
+
+
+    def _run_validation(self, environments: Dict, episode_num: int) -> dict:
+        """
+        âš¡ OVERFITTING FIX: Run validation episodes to monitor generalization
+        
+        Runs N validation episodes across all environments without exploration
+        to measure how well the agent generalizes.
+        """
+        import random
+        
+        val_episodes = self.config.get('validation_episodes', 20)
+        val_results = []
+        
+        # Save current epsilon and set to 0 for greedy validation
+        original_epsilon = self.rl_agent.epsilon
+        self.rl_agent.epsilon = 0.0
+        
+        logger.info(f"\n Running validation ({val_episodes} episodes, greedy)...")
+        
+        env_names = list(environments.keys())
+        for _ in range(val_episodes):
+            env_name = random.choice(env_names)
+            env_info = environments[env_name]
+            
+            # Run episode without training
+            state = env_info['env'].reset()
+            episode_reward = 0
+            done = False
+            steps = 0
+            max_steps = self.config['max_steps_per_episode'].get(env_info['timeframe'], 500)
+            
+            while not done and steps < max_steps:
+                action = self.rl_agent.act(state, training=False)
+                next_state, reward, done, truncated, _ = env_info['env'].step(action)
+                episode_reward += reward
+                state = next_state
+                steps += 1
+                
+                if done or truncated:
+                    break
+            
+            val_results.append(episode_reward)
+        
+        # Restore original epsilon
+        self.rl_agent.epsilon = original_epsilon
+        
+        avg_reward = np.mean(val_results)
+        std_reward = np.std(val_results)
+        max_reward = np.max(val_results)
+        min_reward = np.min(val_results)
+        
+        logger.info(f"  Validation Results (Episode {episode_num}):")
+        logger.info(f"    Avg Reward: {avg_reward:.2f} ± {std_reward:.2f}")
+        logger.info(f"    Range: [{min_reward:.2f}, {max_reward:.2f}]")
+        
+        return {
+            'avg_reward': avg_reward,
+            'std_reward': std_reward,
+            'max_reward': max_reward,
+            'min_reward': min_reward,
+            'episode': episode_num
+        }
 
     def _run_training_episode(self, env, asset: str, timeframe: str, 
                             episode_num: int) -> dict:
         """
         Run a single training episode WITH OPTIONAL EXPLAINABILITY
         
-        ⭐ MODIFIED: Now uses explainer when enabled
+        â­ MODIFIED: Now uses explainer when enabled
         """
         episode_start = time.time()
         
-        MAX_STEPS = self.config['max_steps_per_episode'].get(timeframe, 500)
+        # âš¡ OVERFITTING FIX: Variable episode lengths
+        if self.config.get('variable_episode_length', False):
+            min_steps, max_steps = self.config['episode_length_range'][timeframe]
+            MAX_STEPS = np.random.randint(min_steps, max_steps + 1)
+        else:
+            MAX_STEPS = self.config['max_steps_per_episode'].get(timeframe, 500)
         
-        # ⭐ NEW: Use explainer if enabled
+        # â­ NEW: Use explainer if enabled
         if self.explainer:
             # Build context for explainer
             context = {
@@ -1011,7 +1143,7 @@ class OptimizedSystemTrainer:
             done = False
             
             while not done and steps < MAX_STEPS:
-                # ✅ FIX: Get context for this step with proper attribute names and bounds checking
+                # âœ… FIX: Get context for this step with proper attribute names and bounds checking
                 try:
                     if hasattr(env, 'df') and hasattr(env, 'current_step') and 0 <= env.current_step < len(env.df):
                         current_price = float(env.df.iloc[env.current_step]['close'])
@@ -1236,7 +1368,7 @@ class OptimizedSystemTrainer:
         logger.info(f"Saved results to {results_path}")
 
 
-# ⭐ MODIFIED: Convenience functions now accept explainability params
+# â­ MODIFIED: Convenience functions now accept explainability params
 def train_ml_only_fast(config_path: Optional[str] = None) -> Dict:
     """Fast ML-only training"""
     trainer = OptimizedSystemTrainer(config_path)
@@ -1260,7 +1392,7 @@ def train_rl_only_fast(config_path: Optional[str] = None,
     """
     trainer = OptimizedSystemTrainer(config_path)
     
-    # ⭐ NEW: Set explainability config
+    # â­ NEW: Set explainability config
     if explain:
         trainer.config['explainability'] = {
             'enabled': True,
@@ -1289,7 +1421,7 @@ def train_both_fast(config_path: Optional[str] = None,
     """
     trainer = OptimizedSystemTrainer(config_path)
     
-    # ⭐ NEW: Set explainability config
+    # â­ NEW: Set explainability config
     if explain:
         trainer.config['explainability'] = {
             'enabled': True,
