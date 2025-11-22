@@ -198,7 +198,7 @@ def handle_optimize_command(args):
     if args.estimate:
         optimizer = GPUOptimizer()
         config = optimizer.get_optimal_config()
-        config['assets'] = ['BTC_USDT', 'ETH_USDT', 'SOL_USDT', 'ADA_USDT', 'DOT_USDT']
+        config['assets'] = ['ETH_USDT', 'DOT_USDT', 'SOL_USDT', 'ADA_USDT', 'AVAX_USDT']
         config['rl_episodes'] = int(args.episodes) if args.episodes else 100
         
         estimates = optimizer.estimate_training_time(config)
@@ -215,27 +215,97 @@ def handle_optimize_command(args):
 
 
 def handle_data_command(args):
-    """Handle data management commands"""
-    from src.data.data_manager import DataManager
-    from src.data.validator import DataValidator
+    """Handle data management commands - NOW USING BINANCE"""
+    from src.data.binance_historical import BinanceHistoricalData, BinanceDataConfig
     
-    data_manager = DataManager()
-    
-    if args.update:
-        logger.info("Updating data from Kraken...")
-        data_manager.update_all_data()
-        logger.info(" Data update complete")
+    if args.fetch:
+        logger.info("="*80)
+        logger.info("FETCHING HISTORICAL DATA FROM BINANCE")
+        logger.info("="*80)
+        logger.info("This will download clean OHLCV data for training")
+        logger.info("Live trading will still use Kraken")
+        logger.info("="*80)
+        
+        # Configure what to fetch
+        config = BinanceDataConfig(
+            symbols=['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT', 'AVAXUSDT'],
+            timeframes=['5m', '15m', '1h', '4h', '1d'],
+            start_date=args.start_date if hasattr(args, 'start_date') and args.start_date else '2020-01-01'
+        )
+        
+        # Override with command line args if provided
+        if hasattr(args, 'symbols') and args.symbols:
+            config.symbols = args.symbols
+        
+        connector = BinanceHistoricalData(config)
+        
+        logger.info("\nStarting download...")
+        connector.fetch_all_data()
+        
+        logger.info("\nValidating downloaded data...")
+        connector.validate_data()
+        
+        logger.info("\n" + "="*80)
+        logger.info(" DATA FETCH COMPLETE")
+        logger.info("="*80)
+        logger.info("Data saved to: data/raw/")
+        logger.info("Next step: python main.py features --calculate")
+        
+    elif args.update:
+        logger.info("="*80)
+        logger.info("UPDATING DATA WITH NEW CANDLES")
+        logger.info("="*80)
+        
+        connector = BinanceHistoricalData()
+        
+        logger.info("Fetching new candles from Binance...")
+        connector.update_existing_data()
+        
+        logger.info("\nValidating updated data...")
+        connector.validate_data()
+        
+        logger.info("\n Data update complete")
         
     elif args.validate:
-        logger.info("Validating existing data...")
-        validator = DataValidator()
-        results = validator.validate_all_data()
-        logger.info(f" Validation complete: {results}")
+        logger.info("="*80)
+        logger.info("VALIDATING DATA QUALITY")
+        logger.info("="*80)
+        
+        connector = BinanceHistoricalData()
+        connector.validate_data()
+        
+        logger.info("\n Validation complete")
+        
+    elif args.summary:
+        logger.info("="*80)
+        logger.info("DATA SUMMARY")
+        logger.info("="*80)
+        
+        connector = BinanceHistoricalData()
+        summary = connector.get_data_summary()
+        
+        import json
+        print(json.dumps(summary, indent=2))
         
     elif args.clean:
-        logger.info("Cleaning data...")
-        data_manager.clean_data()
-        logger.info(" Data cleaning complete")
+        logger.info("="*80)
+        logger.info("CLEANING DATA")
+        logger.info("="*80)
+        logger.warning("This will remove all downloaded data files!")
+        
+        response = input("Type 'YES' to confirm: ")
+        if response == 'YES':
+            import shutil
+            from pathlib import Path
+            
+            data_path = Path('./data/raw/')
+            if data_path.exists():
+                shutil.rmtree(data_path)
+                logger.info(" Data directory removed")
+            else:
+                logger.info("Data directory doesn't exist")
+        else:
+            logger.info("Cancelled")
 
 
 def handle_features_command(args):
@@ -365,6 +435,76 @@ def handle_paper_command(args):
         status = trader.get_status()
         logger.info(f"Status: {status}")
 
+def handle_live_command(args):
+    """Handle live trading commands"""
+    from src.live.live_trader import LiveTrader, LiveTradingConfig
+    import os
+    
+    logger.info("="*80)
+    logger.info("LIVE TRADING - KRAKEN EXCHANGE")
+    logger.info("="*80)
+    logger.info("  REAL MONEY TRADING")
+    logger.info("="*80)
+    
+    if args.start:
+        logger.info("\n>>> Starting Live Trading <<<\n")
+        
+        # Load configuration
+        config = LiveTradingConfig(
+            initial_capital=args.capital if hasattr(args, 'capital') else 100.0,
+            kraken_api_key=os.getenv('KRAKEN_API_KEY'),
+            kraken_api_secret=os.getenv('KRAKEN_API_SECRET'),
+            dry_run=args.dry_run if hasattr(args, 'dry_run') else False
+        )
+        
+        # Verify API keys
+        if not config.kraken_api_key or not config.kraken_api_secret:
+            logger.error("Kraken API keys not found!")
+            logger.error("Set KRAKEN_API_KEY and KRAKEN_API_SECRET in .env file")
+            sys.exit(1)
+        
+        # Safety check
+        if not config.dry_run:
+            print("\n" + " "*20)
+            print("YOU ARE ABOUT TO START LIVE TRADING WITH REAL MONEY")
+            print("Capital: ${}".format(config.initial_capital))
+            print("Exchange: Kraken")
+            print("Symbols: {}".format(', '.join(config.symbols)))
+            print(" "*20 + "\n")
+            
+            response = input("Type 'YES' to confirm and start live trading: ")
+            if response != 'YES':
+                logger.info("Live trading cancelled")
+                return
+        
+        # Initialize and start trader
+        try:
+            trader = LiveTrader(config)
+            trader.start()
+            
+            # Keep running until interrupted
+            import time
+            while trader.running:
+                time.sleep(1)
+                
+        except KeyboardInterrupt:
+            logger.info("\nStopping live trading...")
+            trader.stop()
+        except Exception as e:
+            logger.error(f"Live trading failed: {e}", exc_info=True)
+            sys.exit(1)
+        
+    elif args.stop:
+        logger.info("Stopping live trading...")
+        from src.live.live_trader import stop_live_trading
+        stop_live_trading()
+        logger.info(" Live trading stopped")
+        
+    elif args.status:
+        logger.info("Checking live trading status...")
+        from src.live.live_trader import get_live_trading_status
+        get_live_trading_status()
+
 
 def handle_dashboard_command(args):
     """Handle dashboard commands"""
@@ -469,11 +609,24 @@ Examples:
                                 help='Number of RL episodes for estimation')
     
     # Data command
-    data_parser = subparsers.add_parser('data', help='Data management')
+    data_parser = subparsers.add_parser('data', help='Data management (Binance)')
     data_group = data_parser.add_mutually_exclusive_group(required=True)
-    data_group.add_argument('--update', action='store_true', help='Update data')
-    data_group.add_argument('--validate', action='store_true', help='Validate data')
-    data_group.add_argument('--clean', action='store_true', help='Clean data')
+    data_group.add_argument('--fetch', action='store_true', 
+                           help='Fetch historical data from Binance')
+    data_group.add_argument('--update', action='store_true', 
+                           help='Update data with new candles')
+    data_group.add_argument('--validate', action='store_true', 
+                           help='Validate data quality')
+    data_group.add_argument('--summary', action='store_true',
+                           help='Show data summary')
+    data_group.add_argument('--clean', action='store_true', 
+                           help='Clean/remove all data')
+    
+    # Optional arguments for fetch
+    data_parser.add_argument('--start-date', 
+                            help='Start date for fetch (YYYY-MM-DD, default: 2020-01-01)')
+    data_parser.add_argument('--symbols', nargs='+',
+                            help='Specific symbols to fetch (default: all)')
     
     # Features command
     features_parser = subparsers.add_parser('features', help='Feature engineering')
@@ -499,11 +652,13 @@ Examples:
                                 help='Directory to save explanations')
     
     # Paper trading command
-    paper_parser = subparsers.add_parser('paper', help='Paper trading')
-    paper_group = paper_parser.add_mutually_exclusive_group(required=True)
-    paper_group.add_argument('--start', action='store_true', help='Start paper trading')
-    paper_group.add_argument('--stop', action='store_true', help='Stop paper trading')
-    paper_group.add_argument('--status', action='store_true', help='Check status')
+    live_parser = subparsers.add_parser('live', help='Live trading on Kraken')
+    live_group = live_parser.add_mutually_exclusive_group(required=True)
+    live_group.add_argument('--start', action='store_true', help='Start live trading')
+    live_group.add_argument('--stop', action='store_true', help='Stop live trading')
+    live_group.add_argument('--status', action='store_true', help='Check status')
+    live_parser.add_argument('--capital', type=float, default=100.0, help='Starting capital')
+    live_parser.add_argument('--dry-run', action='store_true', help='Simulate without real orders')
     
     # Dashboard command
     dashboard_parser = subparsers.add_parser('dashboard', help='Launch dashboard')
@@ -544,8 +699,8 @@ Examples:
         handle_features_command(args)
     elif args.command == 'backtest':
         handle_backtest_command(args)
-    elif args.command == 'paper':
-        handle_paper_command(args)
+    elif args.command == 'live':
+        handle_live_command(args)
     elif args.command == 'dashboard':
         handle_dashboard_command(args)
     else:

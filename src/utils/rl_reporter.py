@@ -430,6 +430,78 @@ class RLTrainingReporter:
         if losing_episodes:
             avg_loss = np.mean([e['total_reward'] for e in losing_episodes])
             lines.append(f"  Avg Loss (when lose):    {avg_loss:.2f}")
+
+        lines.append("TRADE DURATION ANALYSIS:")
+        
+        # Collect all completed trades with duration info
+        all_durations = []
+        winning_durations = []
+        losing_durations = []
+        
+        for episode in episode_results:
+            if 'trades' in episode and episode['trades']:
+                for trade in episode['trades']:
+                    # Only analyze SELL/COVER trades (they have duration)
+                    if trade.get('action') in ['SELL', 'COVER', 'BUY_COVER'] and trade.get('duration') is not None:
+                        duration = trade['duration']
+                        all_durations.append(duration)
+                        
+                        # Classify by P&L
+                        if trade.get('pnl', 0) > 0:
+                            winning_durations.append(duration)
+                        elif trade.get('pnl', 0) < 0:
+                            losing_durations.append(duration)
+        
+        # Display statistics if we have data
+        if all_durations:
+            lines.append(f"  Total Closed Trades:     {len(all_durations)}")
+            lines.append(f"  Avg Duration:            {np.mean(all_durations):.1f} bars")
+            lines.append(f"  Median Duration:         {np.median(all_durations):.1f} bars")
+            lines.append(f"  Min Duration:            {min(all_durations)} bars")
+            lines.append(f"  Max Duration:            {max(all_durations)} bars")
+            lines.append("")
+            
+            # Duration by outcome
+            if winning_durations:
+                lines.append(f"  Winning Trades:")
+                lines.append(f"    Count:                 {len(winning_durations)}")
+                lines.append(f"    Avg Duration:          {np.mean(winning_durations):.1f} bars")
+                lines.append(f"    Median Duration:       {np.median(winning_durations):.1f} bars")
+            
+            if losing_durations:
+                lines.append(f"  Losing Trades:")
+                lines.append(f"    Count:                 {len(losing_durations)}")
+                lines.append(f"    Avg Duration:          {np.mean(losing_durations):.1f} bars")
+                lines.append(f"    Median Duration:       {np.median(losing_durations):.1f} bars")
+            
+            # Duration distribution
+            lines.append("")
+            lines.append("  Duration Distribution:")
+            
+            # Create bins: <20, 20-100, 100-200, 200+
+            ultra_short = sum(1 for d in all_durations if d < 20)
+            optimal = sum(1 for d in all_durations if 20 <= d <= 100)
+            long_hold = sum(1 for d in all_durations if 100 < d <= 200)
+            very_long = sum(1 for d in all_durations if d > 200)
+            
+            total_trades = len(all_durations)
+            lines.append(f"    < 20 bars (ultra-short): {ultra_short} ({ultra_short/total_trades*100:.1f}%)")
+            lines.append(f"    20-100 bars (optimal):   {optimal} ({optimal/total_trades*100:.1f}%)")
+            lines.append(f"    100-200 bars (long):     {long_hold} ({long_hold/total_trades*100:.1f}%)")
+            lines.append(f"    > 200 bars (very long):  {very_long} ({very_long/total_trades*100:.1f}%)")
+            
+            # Highlight if agent is holding positions optimally
+            if optimal / total_trades > 0.5:
+                lines.append("")
+                lines.append("  âœ… Agent is holding positions in optimal range (20-100 bars)")
+            elif ultra_short / total_trades > 0.5:
+                lines.append("")
+                lines.append("  âš ï¸ Agent is closing positions too quickly (mostly < 20 bars)")
+            elif (long_hold + very_long) / total_trades > 0.5:
+                lines.append("")
+                lines.append("  âš ï¸ Agent is holding positions too long (mostly > 100 bars)")
+        else:
+            lines.append("  No completed trades with duration data")
         
         lines.append("")
         return lines

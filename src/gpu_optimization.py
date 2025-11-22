@@ -330,8 +330,9 @@ def setup_optimal_training(config_path: Optional[str] = None) -> Dict:
             config.update(base_config)
     
     # Add default training parameters
-    config.setdefault('assets', ['BTC_USDT', 'ETH_USDT', 'SOL_USDT', 'ADA_USDT', 'DOT_USDT'])
-    config.setdefault('timeframes', ['1h', '4h', '1d'])
+    config.setdefault('assets', ['ETH_USDT', 'DOT_USDT', 'SOL_USDT', 'ADA_USDT', 'AVAX_USDT'])
+    config.setdefault('timeframes', ['5m', '15m', '1h'])  # ✓ DAY TRADING TIMEFRAMES
+    config.setdefault('execution_timeframe', '5m')  # ✓ Execute on 5m candles
     config.setdefault('rl_episodes', 100)
     
     # Benchmark performance
@@ -385,7 +386,7 @@ if __name__ == "__main__":
     
     if args.estimate:
         config = optimizer.get_optimal_config()
-        config['assets'] = ['BTC_USDT', 'ETH_USDT', 'SOL_USDT', 'ADA_USDT', 'DOT_USDT']
+        config['assets'] = ['ETH_USDT', 'DOT_USDT', 'SOL_USDT', 'ADA_USDT', 'AVAX_USDT']
         config['rl_episodes'] = 100
         
         estimates = optimizer.estimate_training_time(config)

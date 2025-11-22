@@ -328,12 +328,9 @@ class TradingEnvironment:
         """
         # Define timeframe mappings
         timeframe_map = {
-            '1m': 0,
-            '5m': 1,
-            '15m': 2,
-            '1h': 3,
-            '4h': 4,
-            '1d': 5
+            '5m': 0,   # Fastest - intraday scalping
+            '15m': 1,  # Medium - swing setups
+            '1h': 2    # Slower - trend following
         }
         
         # Create one-hot vector [6 dimensions to cover all possible timeframes]
@@ -356,8 +353,9 @@ class TradingEnvironment:
         """
         # Get timeframe in minutes
         timeframe_map = {
-            '1m': 1, '5m': 5, '15m': 15,
-            '1h': 60, '4h': 240, '1d': 1440
+            '5m': 5,     # Intraday fast
+            '15m': 15,   # Intraday medium
+            '1h': 60     # Intraday slow / swing
         }
         minutes = timeframe_map.get(self.timeframe, 60)
         
@@ -1107,6 +1105,10 @@ class TradingEnvironment:
     
     def _record_trade(self, action: str, price: float, size: float, 
                      fees: float, pnl: Optional[float] = None) -> None:
+        duration = None
+        if pnl is not None and hasattr(self, "position_opened_step") and self.position_opened_step is not None:
+            duration = self.current_step - self.position_opened_step
+    
         """Record trade information"""
         trade = {
             'step': self.current_step,
@@ -1116,6 +1118,7 @@ class TradingEnvironment:
             'size': size,
             'fees': fees,
             'pnl': pnl,
+            'duration': duration,
             'balance': self.balance,
             'equity': self._get_portfolio_value()
         }

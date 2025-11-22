@@ -1,0 +1,148 @@
+{
+  "timestamp": "2025-11-20T19:28:46.441590",
+  "results": {
+    "total": 34,
+    "passed": 34,
+    "failed": 0,
+    "warnings": 0,
+    "tests": [
+      {
+        "name": "test_python_version: Python version >= 3.9",
+        "status": "PASS"
+      },
+      {
+        "name": "test_packages: Required packages installed",
+        "status": "PASS"
+      },
+      {
+        "name": "test_gpu: CUDA/GPU availability",
+        "status": "PASS"
+      },
+      {
+        "name": "test_env_vars: Environment variables",
+        "status": "PASS"
+      },
+      {
+        "name": "test_binance_init: Binance connector initialization",
+        "status": "PASS"
+      },
+      {
+        "name": "test_historical_data: Historical data files exist",
+        "status": "PASS"
+      },
+      {
+        "name": "test_data_quality: Data quality (no gaps, no duplicates)",
+        "status": "PASS"
+      },
+      {
+        "name": "test_data_recency: Data recency (< 7 days old)",
+        "status": "PASS"
+      },
+      {
+        "name": "test_binance_api: Binance API connection (live)",
+        "status": "PASS"
+      },
+      {
+        "name": "test_feature_engineer_load: Feature engineer loads",
+        "status": "PASS"
+      },
+      {
+        "name": "test_selected_features: Selected features list exists",
+        "status": "PASS"
+      },
+      {
+        "name": "test_feature_calculation: Feature calculation on sample data",
+        "status": "PASS"
+      },
+      {
+        "name": "test_feature_selection_match: Feature selection matches training",
+        "status": "PASS"
+      },
+      {
+        "name": "test_ml_loading: ML predictor loads",
+        "status": "PASS"
+      },
+      {
+        "name": "test_rl_loading: RL agent loads",
+        "status": "PASS"
+      },
+      {
+        "name": "test_rl_state_dim: RL agent state dimension matches",
+        "status": "PASS"
+      },
+      {
+        "name": "test_state_import: State builder imports successfully",
+        "status": "PASS"
+      },
+      {
+        "name": "test_state_build: State construction with dummy data",
+        "status": "PASS"
+      },
+      {
+        "name": "test_state_breakdown: State breakdown verification",
+        "status": "PASS"
+      },
+      {
+        "name": "test_state_real_features: State with real features",
+        "status": "PASS"
+      },
+      {
+        "name": "test_sizing_calc: Position sizing calculation",
+        "status": "PASS"
+      },
+      {
+        "name": "test_sizing_with_fees: Position sizing with fees",
+        "status": "PASS"
+      },
+      {
+        "name": "test_multiple_positions: Multiple positions don't exceed balance",
+        "status": "PASS"
+      },
+      {
+        "name": "test_kraken_init: Kraken connector initialization (paper mode)",
+        "status": "PASS"
+      },
+      {
+        "name": "test_paper_order: Paper trading order execution",
+        "status": "PASS"
+      },
+      {
+        "name": "test_paper_round_trip: Paper trading round trip (buy + sell)",
+        "status": "PASS"
+      },
+      {
+        "name": "test_kraken_credentials: Kraken API credentials (for live trading)",
+        "status": "PASS"
+      },
+      {
+        "name": "test_load_all: Load all components",
+        "status": "PASS"
+      },
+      {
+        "name": "test_trading_decision: Simulate complete trading decision",
+        "status": "PASS"
+      },
+      {
+        "name": "test_multiple_decisions: Simulate 10 consecutive decisions",
+        "status": "PASS"
+      },
+      {
+        "name": "test_stop_loss: Stop-loss calculation",
+        "status": "PASS"
+      },
+      {
+        "name": "test_take_profit: Take-profit calculation",
+        "status": "PASS"
+      },
+      {
+        "name": "test_max_drawdown: Max drawdown check",
+        "status": "PASS"
+      },
+      {
+        "name": "test_balance_validation: Balance validation",
+        "status": "PASS"
+      }
+    ]
+  },
+  "success": true
+}

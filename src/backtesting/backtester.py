@@ -45,7 +45,8 @@ class BacktestConfig:
     """Configuration for backtesting"""
     # Data settings
     symbols: List[str] = field(default_factory=lambda: ['BTC_USDT', 'ETH_USDT', 'SOL_USDT'])
-    timeframes: List[str] = field(default_factory=lambda: ['1h'])
+    timeframes: List[str] = field(default_factory=lambda: ['5m', '15m', '1h'])  # ✅ NEW
+    execution_timeframe: str = '5m'  # ✅ NEW - Add this entire line
     start_date: str = '2022-01-01'
     end_date: str = '2024-01-01'
     
@@ -1362,7 +1363,8 @@ if __name__ == "__main__":
     # Example backtest configuration
     config = BacktestConfig(
         symbols=['BTC_USDT', 'ETH_USDT', 'SOL_USDT'],
-        timeframes=['1h'],
+        timeframes=['5m', '15m', '1h'],  # ✅ Multi-timeframe
+        execution_timeframe='5m',
         start_date='2023-01-01',
         end_date='2024-01-01',
         initial_capital=10000,

@@ -1,0 +1,21 @@
+{
+  "timestamp": "2025-11-21T07:15:18.811798",
+  "running": true,
+  "status": {
+    "status": "running",
+    "runtime": "9:16:05",
+    "portfolio_value": "$110.32",
+    "pnl": "$-6.17 (-5.30%)",
+    "open_positions": 0,
+    "total_trades": 12,
+    "symbols": [
+      "SOL_USDT"
+    ],
+    "mode": "LIVE"
+  },
+  "portfolio": {
+    "balance": 110.32061573077432,
+    "positions": []
+  },
+  "trades_count": 12
+}

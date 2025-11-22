@@ -680,7 +680,7 @@ if __name__ == "__main__":
     pipeline.register_health_callback(health_update)
     
     # Start pipeline
-    pipeline.start_pipeline(pairs=['BTC_USDT', 'ETH_USDT', 'SOL_USDT'])
+    pipeline.start_pipeline(pairs=['ETH_USDT', 'DOT_USDT', 'SOL_USDT', 'ADA_USDT', 'AVAX_USDT'])
     
     try:
         # Run for a while

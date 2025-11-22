@@ -119,7 +119,7 @@ class PortfolioCenter:
                     'cursor': 'pointer'
                 }),
                 
-                html.Span('⚠️ Live trading requires API keys and involves real money', 
+                html.Span(' Live trading requires API keys and involves real money', 
                          id='live-warning',
                          style={
                              'color': '#ffd93d',

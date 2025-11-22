@@ -126,6 +126,7 @@ class OptimizedSystemTrainer:
     
     def __init__(self, config_path: Optional[str] = None):
         self.config = self._load_config(config_path)
+        self._validate_config()
         self.progress = ProgressTracker('logs/training_progress.json')
         
         # GPU setup
@@ -141,6 +142,7 @@ class OptimizedSystemTrainer:
         from src.models.ml_predictor import MLPredictor
         from src.models.dqn_agent import DQNAgent, DQNConfig
         from src.environment.trading_env import TradingEnvironment
+        from src.environment.multi_timeframe_env import MultiTimeframeEnvironment
         
         self.feature_engineer = FeatureEngineer()
         self.feature_selector = FeatureSelector()
@@ -165,11 +167,12 @@ class OptimizedSystemTrainer:
         config = {
             # Assets and timeframes
             'assets': ['SOL_USDT', 'AVAX_USDT', 'ADA_USDT', 'ETH_USDT', 'DOT_USDT'],
-            'timeframes': ['1h', '4h', '1d'],
+            'timeframes': ['5m', '15m', '1h'],  # ✓ Day trading timeframes
+            'execution_timeframe': '5m',  # ✓ Execute trades on 5m
             
             # Data settings
             'start_date': '2021-01-01',
-            'end_date': '2025-01-01',
+            'end_date': '2025-10-01',
             'train_split': 0.8,
             'validation_split': 0.1,
             
@@ -205,20 +208,20 @@ class OptimizedSystemTrainer:
             # RL settings
             'rl_training_mode': 'random',
             'max_steps_per_episode': {
-                '1h': 500,
-                '4h': 300,
-                '1d': 100
+                '5m': 700,   # ✅ NEW: More steps since 5m is faster
+                '15m': 500,  # ✅ NEW: Medium timeframe
+                '1h': 400    # ✅ KEEP: Matches current '1h' 
             },
             # âš¡ OVERFITTING FIX: Variable episode lengths prevent temporal memorization
             'variable_episode_length': True,
             'episode_length_range': {
-                '1h': [200, 500],
-                '4h': [150, 300],
-                '1d': [50, 100]
+                '5m': [400, 700],   # ✅ NEW: Variable length for 5m
+                '15m': [250, 500],  # ✅ NEW: Variable length for 15m
+                '1h': [150, 400]    # ✅ KEEP: Current range for 1h
             },
-            'rl_episodes': 2500,
+            'rl_episodes': 3500,
             # âš¡ OVERFITTING FIX: Smaller network (was [256, 256, 128] = 99k params)
-            'rl_hidden_dims': [128, 64],  # ~15k parameters - prevents memorization
+            'rl_hidden_dims': [256, 128],  # ~15k parameters - prevents memorization
             'use_double_dqn': True,
             'use_dueling_dqn': True,
             # âš¡ OVERFITTING FIX: Smaller batches for better generalization  
@@ -239,8 +242,8 @@ class OptimizedSystemTrainer:
             
             # Environment
             'initial_balance': 10000,
-            'fee_rate': 0.0026,
-            'slippage': 0.001,
+            'fee_rate': 0.001,
+            'slippage': 0.004,
             'stop_loss': 0.03,
             'take_profit': 0.05,
             
@@ -259,6 +262,64 @@ class OptimizedSystemTrainer:
                 config.update(user_config)
         
         return config
+    
+    def _validate_config(self):
+        """
+        Validate configuration consistency
+        
+        Ensures all timeframes have proper episode length configurations
+        to prevent runtime errors during training.
+        """
+        logger.info("\n" + "="*60)
+        logger.info("VALIDATING CONFIGURATION")
+        logger.info("="*60)
+        
+        # Check 1: Timeframes have episode configurations
+        logger.info("\n[1/3] Checking timeframe configurations...")
+        for tf in self.config['timeframes']:
+            # Check max_steps_per_episode
+            if tf not in self.config['max_steps_per_episode']:
+                raise ValueError(
+                    f" Timeframe '{tf}' in config['timeframes'] but NOT in "
+                    f"config['max_steps_per_episode'].\n"
+                    f"Available keys: {list(self.config['max_steps_per_episode'].keys())}\n"
+                    f"Please add episode length configuration for '{tf}'."
+                )
+            
+            # Check episode_length_range if variable lengths enabled
+            if self.config.get('variable_episode_length'):
+                if tf not in self.config['episode_length_range']:
+                    raise ValueError(
+                        f" Timeframe '{tf}' missing from config['episode_length_range'].\n"
+                        f"Available keys: {list(self.config['episode_length_range'].keys())}\n"
+                        f"Please add variable episode range for '{tf}'."
+                    )
+            
+            logger.info(f"   {tf}: max_steps={self.config['max_steps_per_episode'][tf]}")
+        
+        # Check 2: Execution timeframe is in timeframes list
+        logger.info("\n[2/3] Checking execution timeframe...")
+        exec_tf = self.config.get('execution_timeframe', '5m')
+        if exec_tf not in self.config['timeframes']:
+            raise ValueError(
+                f" Execution timeframe '{exec_tf}' not in timeframes list: "
+                f"{self.config['timeframes']}"
+            )
+        logger.info(f"   Execution timeframe '{exec_tf}' is valid")
+        
+        # Check 3: Episode lengths are reasonable
+        logger.info("\n[3/3] Checking episode length ranges...")
+        for tf, max_steps in self.config['max_steps_per_episode'].items():
+            if max_steps < 50:
+                logger.warning(f"    {tf}: max_steps={max_steps} is very short (<50)")
+            elif max_steps > 2000:
+                logger.warning(f"    {tf}: max_steps={max_steps} is very long (>2000)")
+            else:
+                logger.info(f"   {tf}: max_steps={max_steps} is reasonable")
+        
+        logger.info("\n" + "="*60)
+        logger.info(" CONFIGURATION VALIDATION PASSED")
+        logger.info("="*60 + "\n")
     
     def train_complete_system(self, train_ml: bool = True, train_rl: bool = True) -> Dict:
         """
@@ -285,6 +346,10 @@ class OptimizedSystemTrainer:
             stage_start = time.time()
             self.progress.start_stage('Data Loading', len(self.config['assets']) * len(self.config['timeframes']))
             data = self._fetch_data_parallel()
+            
+            # ✅ CRITICAL FIX: Store original multi-timeframe data for RL training
+            self.raw_data = data
+            
             self.progress.complete_stage('Data Loading', {
                 'datasets_loaded': sum(len(v) for v in data.values()),
                 'time_seconds': time.time() - stage_start
@@ -662,107 +727,184 @@ class OptimizedSystemTrainer:
     
     def _train_rl_agent_gpu(self, train_data: Dict, val_data: Dict, test_data: Dict):
         """
-        Train RL agent on multiple assets and timeframes WITH EXPLAINABILITY
+        Train RL agent with MULTI-TIMEFRAME ENVIRONMENTS + EXPLAINABILITY
         
-        â­ MODIFIED: Now includes explainability system
+        ✓ NEW: Uses multi-timeframe analysis for professional trading
+        ✓ Agent sees ALL timeframes simultaneously (5m, 15m, 1h)
+        ✓ Keeps all optimization features (GPU, parallel, explainability, etc.)
         """
         from src.models.dqn_agent import DQNAgent, DQNConfig
-        from src.environment.trading_env import TradingEnvironment
+        from src.data.data_manager import DataManager
+        # ✓ NEW: Use multi-timeframe environment
+        from src.environment.multi_timeframe_env import MultiTimeframeEnvironment
         
         logger.info("\n" + "="*80)
-        logger.info("MULTI-ASSET & MULTI-TIMEFRAME RL TRAINING")
+        logger.info("MULTI-TIMEFRAME RL TRAINING")
         if self.config['explainability']['enabled']:
             logger.info(" WITH EXPLAINABILITY")
         logger.info("="*80)
+        logger.info("   Agent will see ALL timeframes simultaneously")
+        logger.info("   Professional-grade multi-timeframe analysis")
         
-        # [STEP 1: Load data - UNCHANGED]
-        logger.info("\n[1/5] Loading multi-asset, multi-timeframe data...")
+        # [STEP 1: Load and group data by asset]
+        logger.info("\n[1/5] Loading multi-timeframe data (grouped by asset)...")
         logger.info("   OPTIMIZATION: Using pre-calculated features from ML stage")
         
         feature_calc_start = time.time()
+        data_manager = DataManager()
         
-        training_combinations = []
+        # ✓ NEW: Group data by asset instead of asset-timeframe
+        asset_environments = {}
+        
+        # ✅ CHECK: Ensure we have raw data
+        if not hasattr(self, 'raw_data') or not self.raw_data:
+            logger.error(" ERROR: raw_data not available!")
+            logger.error("   Cannot perform proper multi-timeframe training.")
+            logger.error("   Make sure you added 'self.raw_data = data' in train_complete_system()")
+            raise ValueError("raw_data must be stored for multi-timeframe training")
         
         for asset in train_data.keys():
-            ohlcv_df, features_df = train_data[asset]
+            # Get the features from train_data (old format - base TF only)
+            ohlcv_base, features_df = train_data[asset]
+            
+            # ✅ NEW: Get multi-timeframe OHLCV from raw_data
+            if asset not in self.raw_data:
+                logger.warning(f"  {asset}: Not in raw_data, skipping")
+                continue
+            
+            raw_timeframe_data = self.raw_data[asset]
+            
+            logger.info(f"\n  Processing {asset}...")
+            
+            # ✅ NEW: Use actual timeframe-specific data from raw_data
+            dataframes = {}
+            features_dfs = {}
             
             for timeframe in self.config['timeframes']:
                 try:
-                    ohlcv_train = ohlcv_df
-                    features_train = features_df
-                    
-                    common_idx = ohlcv_train.index.intersection(features_train.index)
-                    ohlcv_train = ohlcv_train.loc[common_idx]
-                    features_train = features_train.loc[common_idx]
-                    
-                    if len(ohlcv_train) < 100:
-                        logger.warning(f"   {asset} {timeframe} insufficient data")
+                    if timeframe not in raw_timeframe_data:
+                        logger.warning(f"    {timeframe}: Not available in raw_data")
                         continue
                     
-                    training_combinations.append({
-                        'asset': asset,
-                        'timeframe': timeframe,
-                        'ohlcv': ohlcv_train,
-                        'features': features_train,
-                        'name': f"{asset}_{timeframe}"
-                    })
+                    ohlcv_tf = raw_timeframe_data[timeframe]
                     
-                    logger.info(f"   {asset:10s} {timeframe:4s}: {len(ohlcv_train):,} candles "
-                               f"({features_train.shape[1]} features, pre-calculated)")
+                    train_start = ohlcv_base.index.min()
+                    train_end = ohlcv_base.index.max()
+                    
+                    ohlcv_tf_train = ohlcv_tf[
+                        (ohlcv_tf.index >= train_start) & 
+                        (ohlcv_tf.index <= train_end)
+                    ]
+                    
+                    common_idx = ohlcv_tf_train.index.intersection(features_df.index)
+                    
+                    if len(common_idx) < 100:
+                        logger.warning(f"    {timeframe}: Insufficient aligned data ({len(common_idx)} rows)")
+                        continue
+                    
+                    dataframes[timeframe] = ohlcv_tf_train.loc[common_idx]
+                    features_dfs[timeframe] = features_df.loc[common_idx]
+                    
+                    logger.info(f"    {timeframe}: {len(dataframes[timeframe]):,} candles "
+                               f"({features_df.shape[1]} features)")
                     
                 except Exception as e:
-                    logger.error(f"   Error loading {asset} {timeframe}: {e}")
+                    logger.error(f"    Error loading {timeframe}: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
                     continue
+            
+            # ← VALIDATION CHECKS (after timeframe loop ends)
+            if len(dataframes) != len(self.config['timeframes']):
+                missing = set(self.config['timeframes']) - set(dataframes.keys())
+                logger.warning(f"   Skipping {asset}: missing timeframes {missing}")
+                continue
+            
+            if len(self.config['timeframes']) >= 2:
+                tf1 = self.config['timeframes'][0]
+                tf2 = self.config['timeframes'][1]
+                
+                len1, len2 = len(dataframes[tf1]), len(dataframes[tf2])
+                ratio = len1 / len2 if len2 > 0 else 0
+                
+                logger.info(f"    Validation: {tf1}={len1} rows, {tf2}={len2} rows (ratio: {ratio:.2f})")
+                
+                if abs(ratio - 1.0) < 0.01:
+                    logger.warning(f"      WARNING: {tf1} and {tf2} have nearly identical length!")
+                
+                if len1 >= 5 and len2 >= 5:
+                    ts1 = list(dataframes[tf1].index[:5])
+                    ts2 = list(dataframes[tf2].index[:5])
+                    
+                    if ts1 == ts2:
+                        logger.error(f"     ERROR: {tf1} and {tf2} have IDENTICAL timestamps!")
+                        logger.error(f"    Multi-timeframe training will NOT work properly!")
+            
+            # ✅✅✅ THIS LINE MUST BE HERE - OUTSIDE ALL IF BLOCKS! ✅✅✅
+            asset_environments[asset] = {
+                'dataframes': dataframes,
+                'features_dfs': features_dfs
+            }
         
-        if not training_combinations:
-            logger.error("  No valid training combinations found!")
+        # After ALL assets are processed:
+        if not asset_environments:
+            logger.error("  No valid multi-timeframe environments!")
             raise ValueError("No training data available")
+        
         
         feature_calc_time = time.time() - feature_calc_start
         
-        logger.info(f"\n Loaded {len(training_combinations)} asset-timeframe combinations")
-        logger.info(f"  Total training data: {sum(len(c['ohlcv']) for c in training_combinations):,} candles")
-        logger.info(f"  Feature calculation time: {feature_calc_time:.2f}s (reused from ML stage!) ðŸš€")
+        logger.info(f"\n  Loaded {len(asset_environments)} assets with multi-timeframe data")
+        logger.info(f"  Feature calculation time: {feature_calc_time:.2f}s (reused from ML!) ")
         
-        # [STEP 2: Initialize agent - UNCHANGED]
-        logger.info("\n[2/5] Initializing universal trading agent...")
+        # [STEP 2: Create first environment to get dimensions]
+        logger.info("\n[2/5] Initializing universal multi-timeframe agent...")
         
-        first_combo = training_combinations[0]
-        temp_env = TradingEnvironment(
-            df=first_combo['ohlcv'],
+        first_asset = list(asset_environments.keys())[0]
+        first_data = asset_environments[first_asset]
+        
+        temp_env = MultiTimeframeEnvironment(
+            dataframes=first_data['dataframes'],
+            features_dfs=first_data['features_dfs'],
+            execution_timeframe=self.config.get('execution_timeframe', '5m'),
             initial_balance=self.config['initial_balance'],
             fee_rate=self.config['fee_rate'],
-            features_df=first_combo['features'],
-            selected_features=self.ml_predictor.selected_features if hasattr(self.ml_predictor, 'selected_features') else None,
-            precompute_observations=True
+            slippage=self.config.get('slippage', 0.001),
+            stop_loss=self.config.get('stop_loss'),
+            take_profit=self.config.get('take_profit'),
+            asset=first_asset,
+            selected_features=self.ml_predictor.selected_features if hasattr(self.ml_predictor, 'selected_features') else None
         )
         
         state_dim = temp_env.observation_space_shape[0]
         action_dim = temp_env.action_space_n
         
+        logger.info(f"   Multi-timeframe environment created")
+        logger.info(f"      State dims: {state_dim} (includes ALL timeframes!)")
+        logger.info(f"      Timeframes: {temp_env.timeframes}")
+        logger.info(f"      Execution TF: {temp_env.execution_timeframe}")
+        
+        # Initialize RL agent
         rl_config = DQNConfig(
             state_dim=state_dim,
             action_dim=action_dim,
             hidden_dims=self.config['rl_hidden_dims'],
             use_double_dqn=self.config['use_double_dqn'],
             use_dueling_dqn=self.config['use_dueling_dqn'],
-            batch_size=self.config.get('rl_batch_size', 64),
-            use_prioritized_replay=self.config.get('use_prioritized_replay', False)
+            batch_size=self.config.get('rl_batch_size', 512),
+            use_prioritized_replay=self.config.get('use_prioritized_replay', True)
         )
         
         self.rl_agent = DQNAgent(config=rl_config)
         
-        logger.info(f" Agent initialized")
-        logger.info(f"  State dimensions: {state_dim}")
-        logger.info(f"  Action dimensions: {action_dim}")
-        logger.info(f"  Network: {self.config['rl_hidden_dims']}")
-        logger.info(f"  Device: {self.rl_agent.device}")
+        logger.info(f"\n   Agent initialized")
+        logger.info(f"      Network: {self.config['rl_hidden_dims']}")
+        logger.info(f"      Device: {self.rl_agent.device}")
         
-        # â­ NEW: Initialize explainer if enabled
+        # [STEP 3: Initialize explainer if enabled] - UNCHANGED
         if self.config['explainability']['enabled']:
             logger.info("\n  Setting up explainability system...")
             
-            # Get feature names
             if hasattr(temp_env, 'get_feature_names'):
                 state_feature_names = temp_env.get_feature_names()
             else:
@@ -777,62 +919,65 @@ class OptimizedSystemTrainer:
                 save_dir=self.config['explainability']['save_dir']
             )
             
-            logger.info(f" Explainability enabled")
-            logger.info(f"  Tracking {len(state_feature_names)} features")
-            logger.info(f"  Explain frequency: every {self.config['explainability']['explain_frequency']} steps")
-            logger.info(f"  Verbose mode: {'ON' if self.config['explainability']['verbose'] else 'OFF'}")
-            logger.info(f"  Save directory: {self.config['explainability']['save_dir']}")
+            logger.info(f"   Explainability enabled")
+            logger.info(f"      Tracking {len(state_feature_names)} features")
+            logger.info(f"      Explain frequency: every {self.config['explainability']['explain_frequency']} steps")
         
-        # [STEP 3: Create environments - UNCHANGED]
-        logger.info("\n[3/5] Creating trading environments...")
+        # [STEP 4: Create all multi-timeframe environments]
+        logger.info("\n[3/5] Creating multi-timeframe environments for all assets...")
         
         environments = {}
-        for combo in training_combinations:
-            name = combo['name']
-            asset = combo['asset']
-            timeframe = combo['timeframe']
-            
-            env = TradingEnvironment(
-                df=combo['ohlcv'],
-                initial_balance=self.config['initial_balance'],
-                fee_rate=self.config['fee_rate'],
-                slippage=self.config['slippage'],
-                features_df=combo['features'],
-                selected_features=self.ml_predictor.selected_features if hasattr(self.ml_predictor, 'selected_features') else None,
-                stop_loss=self.config.get('stop_loss'),
-                take_profit=self.config.get('take_profit'),
-                precompute_observations=True,
-                asset=asset,
-                timeframe=timeframe  
-            )
-            
-            environments[name] = {
-                'env': env,
-                'asset': combo['asset'],
-                'timeframe': combo['timeframe']
-            }
+        for asset, data in asset_environments.items():
+            try:
+                env = MultiTimeframeEnvironment(
+                    dataframes=data['dataframes'],
+                    features_dfs=data['features_dfs'],
+                    execution_timeframe=self.config.get('execution_timeframe', '5m'),
+                    initial_balance=self.config['initial_balance'],
+                    fee_rate=self.config['fee_rate'],
+                    slippage=self.config.get('slippage', 0.001),
+                    stop_loss=self.config.get('stop_loss'),
+                    take_profit=self.config.get('take_profit'),
+                    asset=asset,
+                    selected_features=self.ml_predictor.selected_features if hasattr(self.ml_predictor, 'selected_features') else None
+                )
+                
+                environments[asset] = {
+                    'env': env,
+                    'asset': asset,
+                    'timeframe': self.config.get('execution_timeframe', '5m'),  # For compatibility
+                    'is_multi_timeframe': True,  # NEW: Flag for special handling
+                    'execution_timeframe': env.execution_timeframe,  # NEW: Actual execution TF
+                    'all_timeframes': env.timeframes  # NEW: All timeframes available
+                }
+                
+                logger.info(f"   {asset}: Multi-TF environment created")
+                
+            except Exception as e:
+                logger.error(f"  Error creating environment for {asset}: {e}")
+                continue
         
-        logger.info(f" Created {len(environments)} environments")
+        logger.info(f"\n   Created {len(environments)} multi-timeframe environments")
         
-        # [STEP 4: Training strategy - UNCHANGED]
+        # [STEP 5: Training strategy] - UNCHANGED
         logger.info("\n[4/5] Setting up training strategy...")
         
         total_episodes = self.config['rl_episodes']
-        episodes_per_combo = max(1, total_episodes // len(training_combinations))
-        training_mode = self.config.get('rl_training_mode', 'interleaved')
+        episodes_per_asset = max(1, total_episodes // len(environments))
+        training_mode = self.config.get('rl_training_mode', 'random')
         
         logger.info(f"  Training mode: {training_mode}")
         logger.info(f"  Total episodes: {total_episodes}")
-        logger.info(f"  Combinations: {len(training_combinations)}")
-        logger.info(f"  Episodes per combo: ~{episodes_per_combo}")
+        logger.info(f"  Assets: {len(environments)}")
+        logger.info(f"  Episodes per asset: ~{episodes_per_asset}")
         
-        # [STEP 5: Execute training - UNCHANGED ROUTING]
-        logger.info("\n[5/5] Starting multi-dimensional training...")
+        # [STEP 6: Execute training] - UNCHANGED ROUTING
+        logger.info("\n[5/5] Starting multi-timeframe training...")
         logger.info("="*80)
         
         if training_mode == 'sequential':
             episode_results = self._train_sequential(
-                environments, episodes_per_combo, total_episodes
+                environments, episodes_per_asset, total_episodes
             )
         elif training_mode == 'interleaved':
             episode_results = self._train_interleaved(
@@ -843,12 +988,12 @@ class OptimizedSystemTrainer:
                 environments, total_episodes
             )
         else:
-            logger.warning(f"Unknown mode '{training_mode}', using interleaved")
-            episode_results = self._train_interleaved(
+            logger.warning(f"Unknown mode '{training_mode}', using random")
+            episode_results = self._train_random(
                 environments, total_episodes
             )
         
-        # â­ NEW: Generate explainability report if enabled
+        # Generate explainability report if enabled - UNCHANGED
         if self.explainer:
             logger.info("\n" + "="*80)
             logger.info("GENERATING EXPLAINABILITY REPORT")
@@ -857,29 +1002,29 @@ class OptimizedSystemTrainer:
             final_report = self.explainer.generate_final_report()
             print("\n" + final_report)
         
-        # [STEP 6: Generate report - UNCHANGED]
+        # Generate training report - UNCHANGED
         logger.info("\n" + "="*80)
-        logger.info("GENERATING MULTI-DIMENSIONAL TRAINING REPORT")
+        logger.info("GENERATING MULTI-TIMEFRAME TRAINING REPORT")
         logger.info("="*80)
         
-        from src.utils.rl_reporter import RLTrainingReporter
+        from src.utils.rl_reporter_fast import FastRLTrainingReporter
         
-        reporter = RLTrainingReporter()
+        reporter = FastRLTrainingReporter()
         report = reporter.generate_full_report(
             episode_results=episode_results,
             env=list(environments.values())[0]['env'],
             agent=self.rl_agent,
             config=self.config,
-            save_path=f'results/rl_multi_dimensional_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
+            save_path=f'results/rl_multi_timeframe_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
         )
         
         print("\n" + report)
         
         self._generate_detailed_analysis(episode_results)
         
-        logger.info("\n Multi-dimensional training complete!")
+        logger.info("\n  Multi-timeframe training complete!")
         logger.info(f"  Agent trained on {len(set(e['asset'] for e in episode_results))} assets")
-        logger.info(f"  Agent trained on {len(set(e['timeframe'] for e in episode_results))} timeframes")
+        logger.info(f"  Each asset had {len(self.config['timeframes'])} timeframes")
         logger.info(f"  Total episodes: {len(episode_results)}")
         logger.info(f"  Agent memory: {len(self.rl_agent.memory)} experiences")
 
@@ -1077,7 +1222,11 @@ class OptimizedSystemTrainer:
             episode_reward = 0
             done = False
             steps = 0
-            max_steps = self.config['max_steps_per_episode'].get(env_info['timeframe'], 500)
+            if env_info.get('is_multi_timeframe', False):
+                exec_tf = self.config.get('execution_timeframe', '5m')
+                max_steps = self.config['max_steps_per_episode'].get(exec_tf, 500)
+            else:
+                max_steps = self.config['max_steps_per_episode'].get(env_info['timeframe'], 500)
             
             while not done and steps < max_steps:
                 action = self.rl_agent.act(state, training=False)
@@ -1145,13 +1294,24 @@ class OptimizedSystemTrainer:
             while not done and steps < MAX_STEPS:
                 # âœ… FIX: Get context for this step with proper attribute names and bounds checking
                 try:
-                    if hasattr(env, 'df') and hasattr(env, 'current_step') and 0 <= env.current_step < len(env.df):
-                        current_price = float(env.df.iloc[env.current_step]['close'])
+                    # Multi-timeframe environment
+                    if hasattr(env, 'synchronized_data') and hasattr(env, 'current_step'):
+                        if 0 <= env.current_step < len(env.synchronized_data):
+                            exec_index = env.synchronized_data.index[env.current_step]
+                            current_price = float(env.dataframes[env.execution_timeframe].loc[exec_index, 'close'])
+                        else:
+                            current_price = 0.0
+                    # Single-timeframe environment (fallback)
+                    elif hasattr(env, 'df') and hasattr(env, 'current_step'):
+                        if 0 <= env.current_step < len(env.df):
+                            current_price = float(env.df.iloc[env.current_step]['close'])
+                        else:
+                            current_price = 0.0
                     else:
                         current_price = 0.0
-                except (KeyError, IndexError, TypeError):
+                except (KeyError, IndexError, TypeError, AttributeError):
                     current_price = 0.0
-                
+
                 step_context = {
                     'price': current_price,
                     'position': env.position if hasattr(env, 'position') else 0,
@@ -1170,8 +1330,9 @@ class OptimizedSystemTrainer:
                 # Environment step
                 next_state, reward, done, truncated, info = env.step(action)
                 
-                # Remember and train
-                self.rl_agent.remember(state, action, reward, next_state, done)
+                bootstrap_done = done and not truncated
+
+                self.rl_agent.remember(state, action, reward, next_state, bootstrap_done)
                 
                 # Increment step_count
                 self.rl_agent.step_count += 1
@@ -1215,7 +1376,7 @@ class OptimizedSystemTrainer:
                 'max_drawdown': info.get('max_drawdown', 0),
                 'winning_trades': sum(1 for t in env.trades if (t.get('pnl') or 0) > 0) if hasattr(env, 'trades') else 0,
                 'losing_trades': sum(1 for t in env.trades if (t.get('pnl') or 0) < 0) if hasattr(env, 'trades') else 0,
-                'trades': env.trades if hasattr(env, 'trades') else []
+                'trades': [dict(t) for t in env.trades]
             }
         else:
             # Standard training (no explainability)

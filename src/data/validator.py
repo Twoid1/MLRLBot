@@ -786,7 +786,7 @@ class DataValidator:
             'AVAX_USDT', 'MATIC_USDT', 'LINK_USDT', 'UNI_USDT', 'XRP_USDT',
             'BNB_USDT', 'DOGE_USDT', 'LTC_USDT', 'ATOM_USDT', 'ALGO_USDT'
         ]
-        timeframes = ['1h', '4h', '1d']
+        timeframes = ['5m', '15m', '1h']
         
         results = []
         all_reports = []

@@ -226,7 +226,7 @@ def register_portfolio_callbacks(app, portfolio_center):
         alerts = []
         if len(positions_data) > 3:
             alerts.append(
-                f'⚠️ High exposure: {len(positions_data)} open positions'
+                f' High exposure: {len(positions_data)} open positions'
             )
         
         return positions_data, pending_data, history_data, balance, positions_count, alerts

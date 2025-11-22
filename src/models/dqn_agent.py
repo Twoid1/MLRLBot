@@ -37,15 +37,15 @@ class DQNConfig:
     hidden_dims: List[int] = None  # Default: [256, 256, 128]
     
     # Training hyperparameters
-    learning_rate: float = 0.0001
+    learning_rate: float = 0.0005
     batch_size: int = 32
     gamma: float = 0.99
     tau: float = 0.001  # Soft update parameter
     
     # Exploration parameters
     epsilon_start: float = 1.0
-    epsilon_end: float = 0.01
-    epsilon_decay: float = 0.995
+    epsilon_end: float = 0.05
+    epsilon_decay: float = 0.9995
     
     # Memory parameters
     memory_size: int = 100000
@@ -481,6 +481,10 @@ class DQNAgent:
         self.buffer_size = self.config.memory_size
         self.track_metrics = self.config.track_metrics if hasattr(self.config, 'track_metrics') else False
 
+        if hasattr(self, 'device'):
+            self.q_network = self.q_network.to(self.device)
+            self.target_network = self.target_network.to(self.device)
+
     @property
     def layers(self):
         """Compatibility property for test script"""
@@ -512,6 +516,8 @@ class DQNAgent:
         self.q_network.eval()
         with torch.no_grad():
             q_values = self.q_network(state_tensor)
+            if hasattr(self, 'device'):
+                state_tensor = state_tensor.to(self.device)
             self.q_values.append(q_values.cpu().numpy())
         
         # Select action with highest Q-value
@@ -561,15 +567,16 @@ class DQNAgent:
         # Sample batch
         if self.config.use_prioritized_replay:
             # Prioritized replay returns: (experiences, indices, weights)
-            experiences, indices, weights = self.memory.sample(batch_size, beta)
+            tensors, indices, weights = self.memory.sample(batch_size, beta)
             weights = torch.FloatTensor(weights).to(self.device)
             
-            # Extract tensors from Experience namedtuples
-            states = torch.FloatTensor([e.state for e in experiences]).to(self.device)
-            actions = torch.LongTensor([e.action for e in experiences]).to(self.device)
-            rewards = torch.FloatTensor([e.reward for e in experiences]).to(self.device)
-            next_states = torch.FloatTensor([e.next_state for e in experiences]).to(self.device)
-            dones = torch.FloatTensor([e.done for e in experiences]).to(self.device)
+            # Unpack the tuple of tensors directly
+            states, actions, rewards, next_states, dones = tensors
+            states = states.to(self.device)
+            actions = actions.to(self.device)
+            rewards = rewards.to(self.device)
+            next_states = next_states.to(self.device)
+            dones = dones.to(self.device)
         else:
             # Standard replay buffer returns: (states, actions, rewards, next_states, dones) - already tensors!
             result = self.memory.sample(batch_size)
@@ -752,20 +759,23 @@ class DQNAgent:
         # Extract trades from environment
         trades_list = []
         if hasattr(env, 'trades'):
-            trades_list = [
-                {
-                    'step': t['step'],
-                    'timestamp': str(t['timestamp']),
-                    'action': t['action'],
-                    'price': float(t['price']),
-                    'size': float(t['size']),
-                    'fees': float(t['fees']),
-                    'pnl': float(t['pnl']) if t['pnl'] is not None else None,
-                    'balance': float(t['balance']),
-                    'equity': float(t['equity'])
-                }
-                for t in env.trades
-            ]
+            for t in env.trades:
+                # Skip if not a dict or missing required fields
+                if not isinstance(t, dict):
+                    continue
+                    
+                trades_list.append({
+                    'step': t.get('step', 0),              # ✅ Safe access with default
+                    'timestamp': str(t.get('timestamp', '')),
+                    'action': t.get('action', 'UNKNOWN'),
+                    'price': float(t.get('price', 0)),
+                    'size': float(t.get('size', 0)),
+                    'fees': float(t.get('fees', 0)),
+                    'pnl': float(t['pnl']) if t.get('pnl') is not None else None,
+                    'duration': t.get('duration'),
+                    'balance': float(t.get('balance', 0)),
+                    'equity': float(t.get('equity', 0))
+                })
         # ==========================================
         
         # Calculate statistics
@@ -863,6 +873,8 @@ class DQNAgent:
         
         self.q_network.eval()
         with torch.no_grad():
+            if hasattr(self, 'device'):
+                state_tensor = state_tensor.to(self.device)
             q_values = self.q_network(state_tensor)
         
         return q_values.cpu().numpy().squeeze()

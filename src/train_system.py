@@ -97,7 +97,7 @@ class SystemTrainer:
             ],
             
             # Multi-timeframe configuration (5+ timeframes)
-            'timeframes': ['1h', '4h', '1d'],
+            'timeframes': ['5m', '15m', '1h'],
             
             # Data settings
             'start_date': '2021-01-01',
@@ -124,11 +124,11 @@ class SystemTrainer:
             'rl_episodes': 1000,
             'rl_hidden_dims': [128, 64],
             'rl_batch_size': 256,
-            'rl_learning_rate': 0.0001,
+            'rl_learning_rate': 0.0005,
             'rl_gamma': 0.99,
             'rl_epsilon_start': 1.0,
-            'rl_epsilon_end': 0.01,
-            'rl_epsilon_decay': 0.995,
+            'rl_epsilon_end': 0.05,
+            'rl_epsilon_decay': 0.9995,
             'rl_memory_size': 50000,
             'rl_target_update': 500,
             'rl_update_every': 10,

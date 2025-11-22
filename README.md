@@ -217,7 +217,7 @@ The bot implements multiple safety layers:
 - [Risk Management](docs/risk_management.md)
 - [API Reference](docs/api_reference.md)
 
-## ⚠️ Disclaimer
+##  Disclaimer
 
 **IMPORTANT**: This bot is for educational purposes. Cryptocurrency trading carries significant risk. Never trade with money you cannot afford to lose. Always test thoroughly in paper trading before considering live deployment.
 

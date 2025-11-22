@@ -108,8 +108,36 @@ class FeatureEngineer:
         features = features.replace([np.inf, -np.inf], np.nan)
         
         print(f"Total features calculated: {len(features.columns)}")
+
+        features = self._normalize_features(features)
         
         return features
+    
+    def _normalize_features(self, features: pd.DataFrame) -> pd.DataFrame:
+        """
+        Normalize features to reasonable ranges
+        
+        Common scaling approaches:
+        1. StandardScaler: (x - mean) / std  → mean=0, std=1
+        2. MinMaxScaler: (x - min) / (max - min)  → range [0, 1]
+        3. RobustScaler: Uses median and IQR (better for outliers)
+        """
+        from sklearn.preprocessing import RobustScaler
+        
+        # Use RobustScaler (best for financial data with outliers)
+        scaler = RobustScaler()
+        
+        # Fit and transform
+        features_scaled = pd.DataFrame(
+            scaler.fit_transform(features),
+            index=features.index,
+            columns=features.columns
+        )
+        
+        # Clip extreme values (safety)
+        features_scaled = features_scaled.clip(-10, 10)
+        
+        return features_scaled
     
     # ================== PRICE FEATURES ==================
     
@@ -604,14 +632,14 @@ class FeatureEngineer:
         if '1h' in data_dict and '4h' in data_dict and '1d' in data_dict:
             # Trend alignment score
             trend_score = 0
-            for tf in ['1h', '4h', '1d']:
+            for tf in ['5m', '15m', '1h']:
                 if f'trend_{tf}' in features.columns:
                     trend_score += features[f'trend_{tf}']
             features['trend_alignment_score'] = trend_score / 3
             
             # RSI confluence
             rsi_values = []
-            for tf in ['1h', '4h', '1d']:
+            for tf in ['5m', '15m', '1h']:
                 if f'rsi_14_{tf}' in features.columns:
                     rsi_values.append(features[f'rsi_14_{tf}'])
             if rsi_values:
@@ -620,7 +648,7 @@ class FeatureEngineer:
             
             # Momentum alignment
             momentum_values = []
-            for tf in ['1h', '4h', '1d']:
+            for tf in ['5m', '15m', '1h']:
                 if f'momentum_{tf}' in features.columns:
                     momentum_values.append(features[f'momentum_{tf}'])
             if momentum_values:
@@ -628,32 +656,32 @@ class FeatureEngineer:
             
             # Volatility convergence
             vol_values = []
-            for tf in ['1h', '4h', '1d']:
+            for tf in ['5m', '15m', '1h']:
                 if f'volatility_{tf}' in features.columns:
                     vol_values.append(features[f'volatility_{tf}'])
             if vol_values:
                 features['volatility_convergence'] = pd.concat(vol_values, axis=1).std(axis=1)
             
             # Support/Resistance confluence
-            if all(f'support_{tf}' in features for tf in ['1h', '4h', '1d']):
+            if all(f'support_{tf}' in features for tf in ['5m', '15m', '1h']):
                 features['support_confluence'] = pd.concat(
-                    [features[f'support_{tf}'] for tf in ['1h', '4h', '1d']], axis=1
+                    [features[f'support_{tf}'] for tf in ['5m', '15m', '1h']], axis=1
                 ).mean(axis=1)
             
-            if all(f'resistance_{tf}' in features for tf in ['1h', '4h', '1d']):
+            if all(f'resistance_{tf}' in features for tf in ['5m', '15m', '1h']):
                 features['resistance_confluence'] = pd.concat(
-                    [features[f'resistance_{tf}'] for tf in ['1h', '4h', '1d']], axis=1
+                    [features[f'resistance_{tf}'] for tf in ['5m', '15m', '1h']], axis=1
                 ).mean(axis=1)
             
             # Volume profile alignment
-            if all(f'volume_profile_{tf}' in features for tf in ['1h', '4h', '1d']):
+            if all(f'volume_profile_{tf}' in features for tf in ['5m', '15m', '1h']):
                 features['volume_profile_ratio'] = (
                     features['volume_profile_1h'] / (features['volume_profile_1d'] + 1e-10)
                 )
             
             # MACD alignment score
-            if all(f'macd_signal_{tf}' in features for tf in ['1h', '4h', '1d']):
-                macd_score = sum(features[f'macd_signal_{tf}'] for tf in ['1h', '4h', '1d'])
+            if all(f'macd_signal_{tf}' in features for tf in ['5m', '15m', '1h']):
+                macd_score = sum(features[f'macd_signal_{tf}'] for tf in ['5m', '15m', '1h'])
                 features['macd_alignment_score'] = macd_score / 3
             
             # Timeframe strength indicator
@@ -863,10 +891,8 @@ class FeatureEngineer:
         # Now align (safe because we already shifted)
         aligned = shifted.reindex(base_index).ffill()
         
-        # Backfill any remaining NaNs at the start
-        aligned = aligned.bfill()
-        
-        # Fill any remaining NaNs
+        # Fill any remaining NaNs with 0 (no backward fill needed)
+        # Initial NaNs represent warmup period where data isn't available yet
         aligned = aligned.fillna(0)
         
         return aligned
