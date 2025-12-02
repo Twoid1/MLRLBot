@@ -1,0 +1,199 @@
+====================================================================================================
+COMPREHENSIVE TRADE-BASED TRAINING DIAGNOSTIC REPORT
+====================================================================================================
+Generated: 2025-12-02 12:49:51
+
+|==================================================================================================|
+| EXECUTIVE SUMMARY                                                                                |
+|==================================================================================================|
+
+  Total Trades:      8,000
+  Win Rate:          38.1%
+  Avg P&L:           -0.23%
+  Total P&L:         -1809.29%
+  Avg Hold:          11.7 steps (58 min)
+
+  Avg Win:           +0.44%
+  Avg Loss:          -0.64%
+  Risk/Reward:       0.69
+  Expectancy:        -0.226% per trade
+
+   VERDICT: Negative expectancy - significant changes needed
+
+|==================================================================================================|
+| P&L DISTRIBUTION ANALYSIS                                                                        |
+|==================================================================================================|
+
+  P&L Percentiles:
+    5th:   -1.83%  (worst 5% of trades)
+    25th:  -0.40%
+    50th:  -0.11%  (median)
+    75th:  +0.16%
+    95th:  +0.87%  (best 5% of trades)
+
+  Worst 5 Trades:
+    1. SOL_USDT: -10.51% (held 6 steps, stop_loss exit)
+    2. SOL_USDT: -7.61% (held 30 steps, stop_loss exit)
+    3. SOL_USDT: -6.24% (held 8 steps, stop_loss exit)
+    4. ADA_USDT: -6.23% (held 8 steps, stop_loss exit)
+    5. AVAX_USDT: -6.04% (held 1 steps, stop_loss exit)
+
+  Best 5 Trades:
+    1. ADA_USDT: +8.58% (held 1 steps, take_profit exit)
+    2. SOL_USDT: +8.06% (held 9 steps, take_profit exit)
+    3. DOT_USDT: +7.15% (held 5 steps, agent exit)
+    4. AVAX_USDT: +6.63% (held 9 steps, agent exit)
+    5. SOL_USDT: +5.97% (held 6 steps, agent exit)
+
+  P&L Distribution (text histogram):
+       -10.0% to -3.0%: |                          204 (  2.5%)
+        -3.0% to -2.0%:                            148 (  1.8%)
+        -2.0% to -1.0%: ||                         473 (  5.9%)
+        -1.0% to -0.5%: |||||                      848 ( 10.6%)
+        -0.5% to +0.0%: ||||||||||||||||||||      3276 ( 40.9%)
+        +0.0% to +0.5%: |||||||||||||             2193 ( 27.4%)
+        +0.5% to +1.0%: |||                        556 (  7.0%)
+        +1.0% to +2.0%: |                          236 (  2.9%)
+        +2.0% to +3.0%:                             38 (  0.5%)
+       +3.0% to +10.0%:                             27 (  0.3%)
+
+|==================================================================================================|
+| HOLD DURATION ANALYSIS                                                                           |
+|==================================================================================================|
+
+  Min Hold for Bonus: 36 steps (180 min)
+
+  Hold Duration Stats:
+    Min:     1 steps (5 min)
+    Max:     300 steps (1500 min)
+    Avg:     11.7 steps (58 min)
+    Median:  6.0 steps (30 min)
+
+  Trades >= 36 steps: 606 (7.6%)
+  Trades <  36 steps: 7394 (92.4%)
+
+  Avg Hold (Winners):  8.9 steps (44 min)
+  Avg Hold (Losers):   13.4 steps (67 min)
+
+  Hold Duration Distribution:
+          0-5 steps: ||||||||||||||||||||||    3579 ( 44.7%)
+         5-10 steps: |||||||||                 1519 ( 19.0%)
+        10-20 steps: |||||||||                 1454 ( 18.2%)
+        20-36 steps: |||||                      842 ( 10.5%)
+        36-60 steps: ||                         425 (  5.3%)
+       60-100 steps:                            149 (  1.9%)
+      100-300 steps:                             31 (  0.4%)
+
+|==================================================================================================|
+| ENTRY BEHAVIOR ANALYSIS                                                                          |
+|==================================================================================================|
+
+  (Entry behavior data not available - run training with updated code)
+
+|==================================================================================================|
+| EXIT BEHAVIOR ANALYSIS                                                                           |
+|==================================================================================================|
+
+  Exit Reason Breakdown:
+    agent          :  7813 ( 97.7%)  Avg P&L: -0.13%  Avg Hold: 11 steps
+    stop_loss      :   184 (  2.3%)  Avg P&L: -4.40%  Avg Hold: 28 steps
+    take_profit    :     2 (  0.0%)  Avg P&L: +8.32%  Avg Hold: 5 steps
+    timeout        :     1 (  0.0%)  Avg P&L: -2.58%  Avg Hold: 300 steps
+
+|==================================================================================================|
+| PER-ASSET DETAILED ANALYSIS                                                                      |
+|==================================================================================================|
+
+  Asset         Trades    Win%   Avg P&L   Avg Hold    R/R   Expectancy
+  ---------------------------------------------------------------------------
+  ADA_USDT        1566  40.5%    -0.16%        11s   0.77      -0.164% N
+  AVAX_USDT       1603  46.2%    -0.17%        10s   0.65      -0.173% N
+  DOT_USDT        1643  35.5%    -0.26%        12s   0.67      -0.264% N
+  ETH_USDT        1569  29.6%    -0.24%        14s   0.74      -0.238% N
+  SOL_USDT        1619  38.8%    -0.29%        11s   0.61      -0.289% N
+
+|==================================================================================================|
+| LEARNING PROGRESS OVER TIME                                                                      |
+|==================================================================================================|
+
+  Segment          Episodes     Win%    Avg P&L   Avg Hold   Avg Reward
+  ----------------------------------------------------------------------
+  1-1600               1600   28.2%     -0.22%         6s       -0.39
+  1601-3200            1600   38.6%     -0.22%        15s       -0.36
+  3201-4800            1600   40.2%     -0.25%        13s       -0.39
+  4801-6400            1600   43.6%     -0.21%        12s       -0.33
+  6401-8000            1600   39.9%     -0.23%        12s       -0.36
+
+  Improvement First -> Last Segment:
+    Win Rate:     28.2% -> 39.9%  (+11.7pp)
+    Avg P&L:      -0.22% -> -0.23%  (-0.01%)
+    Avg Hold:     6s -> 12s  (+6s)
+
+|==================================================================================================|
+| DIAGNOSTIC ISSUES & RECOMMENDATIONS                                                              |
+|==================================================================================================|
+
+  ISSUES DETECTED:
+    CRITICAL: Avg hold (12 steps) is < 50% of min bonus threshold (36)
+    CRITICAL: 97.7% agent exits - not letting trades run
+    WARNING: Only 2 take-profit hits (0.03%)
+    CRITICAL: Negative avg P&L (-0.23%)
+
+  RECOMMENDATIONS:
+    -> INCREASE hold_duration_bonus from 0.01 to 0.05 or higher
+    -> INCREASE early exit penalty (change 0.3 multiplier to 0.1)
+    -> DECREASE min_hold_for_bonus from 36 to 20 (make bonus easier to achieve)
+    -> Agent is exiting too early instead of hitting stop-loss/take-profit
+    -> REDUCE the +0.2 bonus for profitable agent exits
+    -> ADD penalty for exiting before min hold duration
+    -> Agent never lets winners run to take-profit
+    -> INCREASE take_profit bonus from 0.5 to 1.0 or higher
+    -> Fees + slippage may be eating profits
+    -> Consider WIDER stop-loss (currently 3%)
+    -> Consider TIGHTER take-profit to lock in more wins
+
+|==================================================================================================|
+| CONFIGURATION USED                                                                               |
+|==================================================================================================|
+
+  Environment:
+    Assets:              ['SOL_USDT', 'AVAX_USDT', 'ADA_USDT', 'ETH_USDT', 'DOT_USDT']
+    Timeframes:          ['5m', '15m', '1h']
+    Episodes:            8000
+
+  Trade Settings:
+    Max Wait Steps:      250
+    Max Hold Steps:      300
+    Min Hold for Bonus:  36 steps
+    No Trade Penalty:    -2.0
+    Timeout Exit Penalty:-1.0
+    Hold Duration Bonus: 0.01 per step
+
+  Risk Settings:
+    Stop Loss:           4.0%
+    Take Profit:         8.0%
+    Fee Rate:            0.10%
+    Slippage:            0.05%
+
+|==================================================================================================|
+| REWARD SYSTEM REFERENCE                                                                          |
+|==================================================================================================|
+
+  GOOD REWARDS (Positive):
+    +P&L% x 100          When trade is profitable
+    +0.5                 When take-profit is hit
+    +0.2                 When agent exits profitably (after costs)
+    +0.01 per step       When holding >= 36 steps (max 2.0)
+
+  BAD REWARDS (Negative):
+    -P&L% x 100          When trade loses money
+    -2.0                 When search times out (no entry in 200 steps)
+    -1.0                 Extra penalty when hold times out (300 steps)
+    x1.0-1.5             Early exit on losing trade (amplified loss)
+
+  REDUCED REWARDS:
+    x0.3-1.0             Early exit on winning trade (reduced profit)
+
+====================================================================================================
+END OF COMPREHENSIVE DIAGNOSTIC REPORT
+====================================================================================================

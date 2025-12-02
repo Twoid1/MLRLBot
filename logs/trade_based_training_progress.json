@@ -1,0 +1,65 @@
+{
+  "start_time": "2025-12-02T12:27:09.944627",
+  "stages": {
+    "Data Loading": {
+      "start_time": 1764707230.2470646,
+      "total_items": 15,
+      "completed_items": 0,
+      "status": "completed",
+      "end_time": 1764707236.967295,
+      "total_time": 6.720230340957642,
+      "final_metrics": {
+        "datasets_loaded": 15,
+        "time_seconds": 6.72022819519043
+      }
+    },
+    "Feature Engineering": {
+      "start_time": 1764707236.96779,
+      "total_items": 5,
+      "completed_items": 0,
+      "status": "completed",
+      "end_time": 1764707239.634028,
+      "total_time": 2.6662380695343018,
+      "final_metrics": {
+        "feature_sets": 5,
+        "time_seconds": 2.6662378311157227
+      }
+    },
+    "Data Splitting": {
+      "start_time": 1764707239.6344917,
+      "total_items": 5,
+      "completed_items": 0,
+      "status": "completed",
+      "end_time": 1764707243.6042387,
+      "total_time": 3.9697470664978027,
+      "final_metrics": {
+        "time_seconds": 3.9696834087371826
+      }
+    },
+    "Trade-Based RL Training": {
+      "start_time": 1764707244.0016396,
+      "total_items": 8000,
+      "completed_items": 0,
+      "status": "completed",
+      "end_time": 1764708591.6562302,
+      "total_time": 1347.6545906066895,
+      "final_metrics": {
+        "time_seconds": 1347.6546711921692,
+        "episodes": 8000
+      }
+    },
+    "Saving Models": {
+      "start_time": 1764708591.6569467,
+      "total_items": 2,
+      "completed_items": 0,
+      "status": "completed",
+      "end_time": 1764708591.9120927,
+      "total_time": 0.2551460266113281,
+      "final_metrics": {
+        "time_seconds": 0.2551455497741699
+      }
+    }
+  },
+  "current_stage": "Saving Models",
+  "overall_progress": 0.0
+}

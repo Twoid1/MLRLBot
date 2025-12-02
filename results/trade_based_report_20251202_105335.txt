@@ -1,0 +1,77 @@
+================================================================================
+TRADE-BASED TRAINING REPORT
+================================================================================
+Generated: 2025-12-02 10:53:35
+
+OVERALL PERFORMANCE
+----------------------------------------
+  Total Episodes:       5000
+  Completed Trades:     5000
+  Win Rate:             37.3%
+  Avg P&L per Trade:    -0.24%
+  Total P&L:            -1180.45%
+  Avg Reward:           -0.39
+  Avg Hold Duration:    12 steps (59 min)
+
+PER-ASSET PERFORMANCE
+----------------------------------------
+  ADA_USDT:
+    Trades: 998, Win Rate: 41%, Avg P&L: -0.17%, Avg Hold: 10 steps
+  AVAX_USDT:
+    Trades: 977, Win Rate: 43%, Avg P&L: -0.18%, Avg Hold: 9 steps
+  DOT_USDT:
+    Trades: 999, Win Rate: 37%, Avg P&L: -0.29%, Avg Hold: 12 steps
+  ETH_USDT:
+    Trades: 975, Win Rate: 29%, Avg P&L: -0.25%, Avg Hold: 15 steps
+  SOL_USDT:
+    Trades: 1051, Win Rate: 37%, Avg P&L: -0.30%, Avg Hold: 13 steps
+
+TERMINATION BREAKDOWN
+----------------------------------------
+  agent_exit: 4803 (96.1%)
+  stop_loss: 194 (3.9%)
+  take_profit: 3 (0.1%)
+
+LEARNING PROGRESS
+----------------------------------------
+  First 100 episodes:
+    Win Rate: 19%, Avg P&L: -0.24%, Avg Hold: 2 steps
+  Last 100 episodes:
+    Win Rate: 38%, Avg P&L: -0.34%, Avg Hold: 14 steps
+  Improvement:
+    Win Rate: +19.0pp
+    Avg P&L:  -0.09%
+    Avg Hold: +12 steps
+
+CONFIGURATION
+----------------------------------------
+  Assets:           ['SOL_USDT', 'AVAX_USDT', 'ADA_USDT', 'ETH_USDT', 'DOT_USDT']
+  Timeframes:       ['5m', '15m', '1h']
+  Episodes:         5000
+  Max Wait Steps:   200
+  Max Hold Steps:   300
+  Min Hold Bonus:   36 steps
+  Stop Loss:        3.0%
+  Take Profit:      6.0%
+
+REWARD SYSTEM
+----------------------------------------
+  SEARCHING Phase (Agent is FLAT):
+    - WAIT action:  Reward = 0
+    - ENTER action: Reward = 0 (wait for trade outcome)
+    - Timeout:      Reward = -2.0 (penalty for not trading)
+
+  IN_TRADE Phase (Agent is LONG):
+    - HOLD action:  Reward = 0
+    - EXIT action:  Reward = Trade P&L × 100
+    - Stop-Loss:    Reward = Trade P&L (negative)
+    - Take-Profit:  Reward = Trade P&L + 0.5 bonus
+    - Timeout:      Reward = Trade P&L - 1.0 penalty
+
+  Duration Bonuses:
+    - Hold >= 36 steps: +0.01 per extra step (max 2.0)
+    - Hold < min: Reward reduced (encourages patience)
+
+================================================================================
+END OF REPORT
+================================================================================

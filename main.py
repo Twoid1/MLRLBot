@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Kraken Trading Bot - Main Entry Point (OPTIMIZED)
+Kraken Trading Bot - Main Entry Point (OPTIMIZED + TRADE-BASED)
 
 Added:
 - Fast training with GPU support
 - Real-time progress monitoring
 - Automatic optimization
 - Performance benchmarking
+- ⭐ NEW: Trade-based training (1 episode = 1 trade)
 """
 
 import argparse
@@ -27,6 +28,104 @@ load_dotenv()
 logger = None
 
 
+def handle_train_command_trade_based(args):
+    """
+    Handle TRADE-BASED training commands
+    
+    ⭐ NEW: Each episode = 1 complete trade
+    Agent learns trade QUALITY, not step-by-step prediction
+    """
+    from src.trade_based_trainer import TradeBasedTrainer, train_trade_based, train_trade_based_rl_only
+    
+    logger.info("="*80)
+    logger.info("TRADE-BASED TRAINING SYSTEM")
+    logger.info("="*80)
+    logger.info("  Each episode = 1 complete trade")
+    logger.info("  Agent learns: WHEN to enter, WHEN to exit")
+    logger.info("  Focus: Trade QUALITY over QUANTITY")
+    logger.info("="*80)
+    
+    # Build custom config if needed
+    config_updates = {}
+    
+    # Apply command line overrides
+    if hasattr(args, 'episodes') and args.episodes:
+        config_updates['rl_episodes'] = args.episodes
+    
+    if hasattr(args, 'max_wait') and args.max_wait:
+        if 'trade_config' not in config_updates:
+            config_updates['trade_config'] = {}
+        config_updates['trade_config']['max_wait_steps'] = args.max_wait
+    
+    if hasattr(args, 'max_hold') and args.max_hold:
+        if 'trade_config' not in config_updates:
+            config_updates['trade_config'] = {}
+        config_updates['trade_config']['max_hold_steps'] = args.max_hold
+    
+    # Start progress monitor if requested
+    if hasattr(args, 'monitor') and args.monitor:
+        logger.info("\nStarting progress monitor in new terminal...")
+        try:
+            if sys.platform == 'win32':
+                subprocess.Popen(['cmd', '/c', 'start', 'python', 'src/training_monitor.py'])
+            else:
+                subprocess.Popen(['gnome-terminal', '--', 'python', 'src/training_monitor.py'])
+        except Exception as e:
+            logger.warning(f"Could not start monitor: {e}")
+    
+    try:
+        # Create trainer with optional config path
+        config_path = args.config if hasattr(args, 'config') and args.config else None
+        trainer = TradeBasedTrainer(config_path)
+        
+        # Apply any config updates
+        for key, value in config_updates.items():
+            if isinstance(value, dict) and key in trainer.config:
+                trainer.config[key].update(value)
+            else:
+                trainer.config[key] = value
+        
+        # Determine what to train
+        if args.ml:
+            logger.info("\n>>> Training ML Predictor Only <<<\n")
+            results = trainer.train_complete_system(train_ml=True, train_rl=False)
+            logger.info(" ML training complete")
+            
+        elif args.rl:
+            logger.info("\n>>> Trade-Based RL Training Only <<<\n")
+            logger.info("  Will load existing ML model for feature selection")
+            results = trainer.train_complete_system(train_ml=False, train_rl=True)
+            logger.info(" Trade-based RL training complete")
+            
+        elif args.both:
+            logger.info("\n>>> Training Both ML and Trade-Based RL <<<\n")
+            results = trainer.train_complete_system(train_ml=True, train_rl=True)
+            logger.info(" Complete trade-based system training finished")
+            
+        else:
+            logger.error("Please specify --ml, --rl, or --both")
+            sys.exit(1)
+        
+        # Print success message
+        print("\n" + "="*80)
+        print(" TRADE-BASED TRAINING COMPLETED SUCCESSFULLY")
+        print("="*80)
+        
+        print("\nWhat the agent learned:")
+        print("  - WHEN to enter trades (good setups)")
+        print("  - WHEN to exit trades (optimal timing)")
+        print("  - Trade QUALITY over quantity")
+        
+        print("\nNext steps:")
+        print("  1. Run backtesting: python main.py backtest --walk-forward")
+        print("  2. Compare with time-based: python main.py train --both --fast")
+        print("  3. Start paper trading: python main.py paper --start")
+        
+    except Exception as e:
+        logger.error(f"Trade-based training failed: {e}", exc_info=True)
+        sys.exit(1)
+
+
 def handle_train_command_optimized(args):
     """Handle optimized model training commands WITH EXPLAINABILITY"""
     from src.optimized_train_system import train_ml_only_fast, train_rl_only_fast, train_both_fast
@@ -43,7 +142,10 @@ def handle_train_command_optimized(args):
         logger.info("="*80 + "\n")
     
     logger.info("="*80)
-    logger.info("STARTING OPTIMIZED MODEL TRAINING")
+    logger.info("STARTING OPTIMIZED MODEL TRAINING (TIME-BASED)")
+    logger.info("="*80)
+    logger.info("  Episode = fixed number of steps")
+    logger.info("  Tip: Use --trade-based for trade-quality learning!")
     logger.info("="*80)
     
     # Setup optimal configuration
@@ -133,6 +235,7 @@ def handle_train_command_standard(args):
     logger.info("STARTING STANDARD MODEL TRAINING")
     logger.info("="*80)
     logger.info("Tip: Use --fast flag for 10-20x speed improvement!")
+    logger.info("Tip: Use --trade-based for trade-quality learning!")
     
     config_path = getattr(args, 'config', None)
     
@@ -522,39 +625,53 @@ def main():
     """Main entry point for the trading bot."""
     
     parser = argparse.ArgumentParser(
-        description='Kraken Trading Bot - Hybrid ML/RL System (OPTIMIZED)',
+        description='Kraken Trading Bot - Hybrid ML/RL System (OPTIMIZED + TRADE-BASED)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # OPTIMIZED TRAINING (NEW - 10-20x faster!)
-  python main.py train --both --fast --monitor      # Train with real-time monitoring
-  python main.py train --rl --fast                  # Fast RL training with GPU
+  # ⭐ TRADE-BASED TRAINING (NEW - learns trade quality!)
+  python main.py train --both --trade-based          # Train with trade-based episodes
+  python main.py train --rl --trade-based            # RL only, trade-based
+  python main.py train --both --trade-based --episodes 10000  # More episodes
+  
+  # OPTIMIZED TIME-BASED TRAINING (10-20x faster)
+  python main.py train --both --fast --monitor       # Train with real-time monitoring
+  python main.py train --rl --fast                   # Fast RL training with GPU
   
   # Monitor training progress (run in separate terminal)
-  python main.py monitor                            # Live progress tracking
-  python main.py monitor --report                   # Generate summary report
+  python main.py monitor                             # Live progress tracking
+  python main.py monitor --report                    # Generate summary report
   
   # Optimization utilities
-  python main.py optimize --info                    # Show system capabilities
-  python main.py optimize --benchmark               # Run performance tests
-  python main.py optimize --config                  # Generate optimal config
-  python main.py optimize --estimate --episodes 500 # Estimate training time
+  python main.py optimize --info                     # Show system capabilities
+  python main.py optimize --benchmark                # Run performance tests
+  python main.py optimize --config                   # Generate optimal config
+  python main.py optimize --estimate --episodes 500  # Estimate training time
   
   # Standard (slower) training
-  python main.py train --both                       # Original training method
+  python main.py train --both                        # Original training method
   
   # Data Management
-  python main.py data --update                      # Update data from Kraken
+  python main.py data --update                       # Update data from Kraken
   
   # Backtesting
-  python main.py backtest --run                     # Run backtest
-  python main.py backtest --walk-forward            # Walk-forward analysis
+  python main.py backtest --run                      # Run backtest
+  python main.py backtest --walk-forward             # Walk-forward analysis
   
   # Paper Trading
-  python main.py paper --start                      # Start paper trading
+  python main.py paper --start                       # Start paper trading
   
   # Dashboard
-  python main.py dashboard                          # Launch web dashboard
+  python main.py dashboard                           # Launch web dashboard
+
+TRAINING MODES COMPARISON:
+  --trade-based : Each episode = 1 trade. Agent learns WHEN to enter/exit.
+                  Best for: Swing trading, trade quality over quantity.
+                  
+  --fast        : Time-based episodes (fixed steps). Agent predicts next candle.
+                  Best for: Scalping, high-frequency decisions.
+                  
+  (no flag)     : Standard training, slower but reliable.
         """
     )
     
@@ -564,18 +681,38 @@ Examples:
     
     subparsers = parser.add_subparsers(dest='command', help='Command to execute')
     
-    # Train command (OPTIMIZED)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # TRAIN COMMAND (with trade-based option)
+    # ═══════════════════════════════════════════════════════════════════════════
     train_parser = subparsers.add_parser('train', help='Train models')
+    
+    # What to train
     train_group = train_parser.add_mutually_exclusive_group(required=True)
     train_group.add_argument('--ml', action='store_true', help='Train ML predictor only')
     train_group.add_argument('--rl', action='store_true', help='Train RL agent only')
     train_group.add_argument('--both', action='store_true', help='Train both ML and RL')
-    train_parser.add_argument('--fast', action='store_true', 
-                             help='Use optimized training (10-20x faster, GPU support)')
+    
+    # Training mode (mutually exclusive)
+    mode_group = train_parser.add_mutually_exclusive_group()
+    mode_group.add_argument('--trade-based', action='store_true',
+                           help='⭐ NEW: Trade-based training (1 episode = 1 trade)')
+    mode_group.add_argument('--fast', action='store_true', 
+                           help='Time-based optimized training (10-20x faster, GPU support)')
+    
+    # General options
     train_parser.add_argument('--monitor', action='store_true',
                              help='Start progress monitor in new terminal')
     train_parser.add_argument('--config', help='Path to config file')
-
+    
+    # Trade-based specific options
+    train_parser.add_argument('--episodes', type=int,
+                             help='Number of episodes (trade-based: trades, time-based: episodes)')
+    train_parser.add_argument('--max-wait', type=int,
+                             help='[Trade-based] Max steps to wait for entry (default: 200)')
+    train_parser.add_argument('--max-hold', type=int,
+                             help='[Trade-based] Max steps to hold position (default: 300)')
+    
+    # Explainability options
     train_parser.add_argument('--explain', action='store_true', 
                              help='Enable explainability (show why agent makes decisions)')
     train_parser.add_argument('--verbose', action='store_true',
@@ -585,7 +722,9 @@ Examples:
     train_parser.add_argument('--explain-dir', type=str, default='logs/explanations',
                              help='Directory to save explanations')
     
-    # Monitor command (NEW)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # MONITOR COMMAND
+    # ═══════════════════════════════════════════════════════════════════════════
     monitor_parser = subparsers.add_parser('monitor', help='Monitor training progress')
     monitor_parser.add_argument('--file', default='logs/training_progress.json',
                                help='Progress file to monitor')
@@ -595,7 +734,9 @@ Examples:
                                help='Generate summary report')
     monitor_parser.add_argument('--output', help='Output file for report')
     
-    # Optimize command (NEW)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # OPTIMIZE COMMAND
+    # ═══════════════════════════════════════════════════════════════════════════
     optimize_parser = subparsers.add_parser('optimize', help='Optimization utilities')
     optimize_parser.add_argument('--info', action='store_true',
                                 help='Show system info and capabilities')
@@ -608,7 +749,9 @@ Examples:
     optimize_parser.add_argument('--episodes', type=int,
                                 help='Number of RL episodes for estimation')
     
-    # Data command
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DATA COMMAND
+    # ═══════════════════════════════════════════════════════════════════════════
     data_parser = subparsers.add_parser('data', help='Data management (Binance)')
     data_group = data_parser.add_mutually_exclusive_group(required=True)
     data_group.add_argument('--fetch', action='store_true', 
@@ -628,14 +771,18 @@ Examples:
     data_parser.add_argument('--symbols', nargs='+',
                             help='Specific symbols to fetch (default: all)')
     
-    # Features command
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FEATURES COMMAND
+    # ═══════════════════════════════════════════════════════════════════════════
     features_parser = subparsers.add_parser('features', help='Feature engineering')
     features_group = features_parser.add_mutually_exclusive_group(required=True)
     features_group.add_argument('--calculate', action='store_true', help='Calculate features')
     features_group.add_argument('--select', action='store_true', help='Select features')
     features_group.add_argument('--analyze', action='store_true', help='Analyze features')
     
-    # Backtest command
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BACKTEST COMMAND
+    # ═══════════════════════════════════════════════════════════════════════════
     backtest_parser = subparsers.add_parser('backtest', help='Backtesting')
     backtest_group = backtest_parser.add_mutually_exclusive_group(required=True)
     backtest_group.add_argument('--run', action='store_true', help='Run backtest')
@@ -651,7 +798,9 @@ Examples:
     backtest_parser.add_argument('--explain-dir', type=str, default='logs/backtest_explanations',
                                 help='Directory to save explanations')
     
-    # Paper trading command
+    # ═══════════════════════════════════════════════════════════════════════════
+    # LIVE COMMAND
+    # ═══════════════════════════════════════════════════════════════════════════
     live_parser = subparsers.add_parser('live', help='Live trading on Kraken')
     live_group = live_parser.add_mutually_exclusive_group(required=True)
     live_group.add_argument('--start', action='store_true', help='Start live trading')
@@ -660,7 +809,9 @@ Examples:
     live_parser.add_argument('--capital', type=float, default=100.0, help='Starting capital')
     live_parser.add_argument('--dry-run', action='store_true', help='Simulate without real orders')
     
-    # Dashboard command
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DASHBOARD COMMAND
+    # ═══════════════════════════════════════════════════════════════════════════
     dashboard_parser = subparsers.add_parser('dashboard', help='Launch dashboard')
     dashboard_parser.add_argument('--port', type=int, default=8050, help='Port number')
     
@@ -685,7 +836,9 @@ Examples:
     
     # Handle commands
     if args.command == 'train':
-        if args.fast:
+        if hasattr(args, 'trade_based') and args.trade_based:
+            handle_train_command_trade_based(args)
+        elif hasattr(args, 'fast') and args.fast:
             handle_train_command_optimized(args)
         else:
             handle_train_command_standard(args)
