@@ -121,7 +121,7 @@ class SystemTrainer:
             'pt_sl': [1.5, 1.0],
             
             # RL settings - ⚡ OPTIMIZED
-            'rl_episodes': 1000,
+            'rl_episodes': 3000,
             'rl_hidden_dims': [128, 64],
             'rl_batch_size': 256,
             'rl_learning_rate': 0.0005,
@@ -138,8 +138,8 @@ class SystemTrainer:
             
             # Environment settings
             'initial_balance': 10000,
-            'fee_rate': 0.0026,
-            'slippage': 0.001,
+            'fee_rate': 0.001,
+            'slippage': 0.005,
             'stop_loss': 0.05,
             'take_profit': 0.10,
             'precompute_observations': True,

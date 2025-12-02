@@ -142,6 +142,7 @@ class OptimizedSystemTrainer:
         from src.models.ml_predictor import MLPredictor
         from src.models.dqn_agent import DQNAgent, DQNConfig
         from src.environment.trading_env import TradingEnvironment
+        # In optimized_train_system.py:
         from src.environment.multi_timeframe_env import MultiTimeframeEnvironment
         
         self.feature_engineer = FeatureEngineer()
@@ -219,9 +220,9 @@ class OptimizedSystemTrainer:
                 '15m': [250, 500],  # ✅ NEW: Variable length for 15m
                 '1h': [150, 400]    # ✅ KEEP: Current range for 1h
             },
-            'rl_episodes': 3500,
+            'rl_episodes': 3000,
             # âš¡ OVERFITTING FIX: Smaller network (was [256, 256, 128] = 99k params)
-            'rl_hidden_dims': [256, 128],  # ~15k parameters - prevents memorization
+            'rl_hidden_dims': [128, 64],  # ~15k parameters - prevents memorization
             'use_double_dqn': True,
             'use_dueling_dqn': True,
             # âš¡ OVERFITTING FIX: Smaller batches for better generalization  
@@ -243,9 +244,9 @@ class OptimizedSystemTrainer:
             # Environment
             'initial_balance': 10000,
             'fee_rate': 0.001,
-            'slippage': 0.004,
-            'stop_loss': 0.03,
-            'take_profit': 0.05,
+            'slippage': 0.001,
+            'stop_loss': 0.05,
+            'take_profit': 0.1,
             
             # â­ NEW: Explainability settings
             'explainability': {

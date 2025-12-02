@@ -37,7 +37,7 @@ class DQNConfig:
     hidden_dims: List[int] = None  # Default: [256, 256, 128]
     
     # Training hyperparameters
-    learning_rate: float = 0.0005
+    learning_rate: float = 0.0001
     batch_size: int = 32
     gamma: float = 0.99
     tau: float = 0.001  # Soft update parameter
@@ -45,7 +45,7 @@ class DQNConfig:
     # Exploration parameters
     epsilon_start: float = 1.0
     epsilon_end: float = 0.05
-    epsilon_decay: float = 0.9995
+    epsilon_decay: float = 0.995
     
     # Memory parameters
     memory_size: int = 100000

@@ -1,0 +1,279 @@
+====================================================================================================
+RL TRAINING COMPLETE - COMPREHENSIVE PERFORMANCE REPORT
+====================================================================================================
+Generated: 2025-11-22 21:30:29
+Detail Level: STANDARD
+
+====================================================================================================
+1. TRAINING CONFIGURATION
+====================================================================================================
+Episodes Trained:          7500
+Steps per Episode:         {'5m': 700, '15m': 500, '1h': 400}
+Initial Balance:           $10,000.00
+Fee Rate:                  0.26%
+Network Architecture:      [128, 64]
+Batch Size:                64
+Learning Rate:             0.0001
+Gamma (Discount):          0.99
+Double DQN:                True
+Dueling DQN:               True
+
+====================================================================================================
+2. TRAINING PROGRESS
+====================================================================================================
+OVERALL PERFORMANCE:
+  Total Episodes:          7500
+  Avg Reward:              -1436.64
+  Best Reward:             87521.12 (Episode 3656)
+  Worst Reward:            -5598.00 (Episode 6675)
+  Reward Std Dev:          1198.30
+  Avg Final Portfolio:     $6,814.74
+  Best Final Portfolio:    $11,914.15
+
+LEARNING STABILITY:
+  Early Episodes (first 20%): Avg reward -1850.97
+  Late Episodes (last 20%):   Avg reward -1114.19
+  Improvement:                +736.78
+    Agent improved during training
+
+====================================================================================================
+3. EPISODE PERFORMANCE ANALYSIS
+====================================================================================================
+  Profitable Episodes:     51/7500 (0.7%)
+  Average Return:          -31.85%
+  Best Return:             +19.14%
+  Worst Return:            -52.16%
+
+====================================================================================================
+4. TRADING BEHAVIOR ANALYSIS
+====================================================================================================
+  Total Trades:            444303
+  Winning Trades:          62150 (14.0%)
+  Losing Trades:           382153 (86.0%)
+  Avg Win:                 $51.05
+  Avg Loss:                $-47.57
+  Profit Factor:           0.17
+  Avg Trade Duration:      4.6 steps
+  Recent Duration (Q4):    6.0 steps
+  Duration Trend:          UP 1.5 steps (+32.0%)
+
+====================================================================================================
+5. LEARNING PROGRESS
+====================================================================================================
+EPSILON DECAY PROGRESS:
+  Episode    1:  = 0.950
+  Episode 1876:  = 0.886
+  Episode 3751:  = 0.700
+  Episode 5626:  = 0.550
+  Episode 7500:  = 0.700
+
+RECENT PERFORMANCE (last 10% of episodes):
+  Average Reward:          -1055.23
+  Std Dev:                 633.40
+
+RECENT TRADE DURATION (last 25% of episodes):
+  Average Duration:        6.0 steps
+  Min Duration:            1 steps
+  Max Duration:            175 steps
+  Std Dev:                 7.4 steps
+  Number of Trades:        84588
+
+====================================================================================================
+6. FINAL AGENT EVALUATION
+====================================================================================================
+  Running final evaluation episode...
+  Final Portfolio Value:   $10,000.00
+  Total Reward:            0.00
+  Steps Taken:             1000
+
+====================================================================================================
+7. TOP 5 BEST EPISODES
+====================================================================================================
+
+Episode #3486:
+  Return:                  +19.14%
+  Portfolio Value:         $11,914.15
+  Total Reward:            317.24
+  Trades:                  22
+  Win Rate:                68.2%
+
+Episode #6809:
+  Return:                  +18.76%
+  Portfolio Value:         $11,876.20
+  Total Reward:            601.44
+  Trades:                  30
+  Win Rate:                50.0%
+
+Episode #6742:
+  Return:                  +17.87%
+  Portfolio Value:         $11,787.33
+  Total Reward:            616.81
+  Trades:                  28
+  Win Rate:                57.1%
+
+Episode #6722:
+  Return:                  +15.72%
+  Portfolio Value:         $11,572.38
+  Total Reward:            340.08
+  Trades:                  14
+  Win Rate:                42.9%
+
+Episode #7093:
+  Return:                  +15.22%
+  Portfolio Value:         $11,522.23
+  Total Reward:            -80.68
+  Trades:                  28
+  Win Rate:                71.4%
+
+====================================================================================================
+8. TOP 10 MOST PROFITABLE TRADES
+====================================================================================================
+
+  Showing top 10 trades (analyzed 444303 total)
+
+================================================================================
+RANK #1
+================================================================================
+  Episode:                 #6820
+  Asset:                   SOL_USDT
+  Timestamp:               2023-01-02 07:10:00
+  Action:                  SELL
+  Price:                   $11.99
+  Size:                    891.684636
+  PnL:                     $1,771.66 
+  Fees Paid:               $27.79
+  Net Profit:              $1,743.87
+
+================================================================================
+RANK #2
+================================================================================
+  Episode:                 #6809
+  Asset:                   SOL_USDT
+  Timestamp:               2021-01-07 12:40:00
+  Action:                  SELL
+  Price:                   $2.54
+  Size:                    4708.673128
+  PnL:                     $1,143.57 
+  Fees Paid:               $31.10
+  Net Profit:              $1,112.46
+
+================================================================================
+RANK #3
+================================================================================
+  Episode:                 #6661
+  Asset:                   ETH_USDT
+  Timestamp:               2022-06-15 18:40:00
+  Action:                  SELL
+  Price:                   $1,182.15
+  Size:                    8.647750
+  PnL:                     $999.95 
+  Fees Paid:               $26.58
+  Net Profit:              $973.37
+
+================================================================================
+RANK #4
+================================================================================
+  Episode:                 #1697
+  Asset:                   AVAX_USDT
+  Timestamp:               2022-05-11 13:40:00
+  Action:                  SELL
+  Price:                   $36.30
+  Size:                    225.623451
+  PnL:                     $987.66 
+  Fees Paid:               $21.30
+  Net Profit:              $966.36
+
+================================================================================
+RANK #5
+================================================================================
+  Episode:                 #6694
+  Asset:                   SOL_USDT
+  Timestamp:               2021-05-19 13:35:00
+  Action:                  SELL
+  Price:                   $41.75
+  Size:                    263.699403
+  PnL:                     $979.85 
+  Fees Paid:               $28.62
+  Net Profit:              $951.22
+
+================================================================================
+RANK #6
+================================================================================
+  Episode:                 #4222
+  Asset:                   AVAX_USDT
+  Timestamp:               2021-05-19 13:10:00
+  Action:                  SELL
+  Price:                   $21.28
+  Size:                    394.766279
+  PnL:                     $964.65 
+  Fees Paid:               $21.84
+  Net Profit:              $942.80
+
+================================================================================
+RANK #7
+================================================================================
+  Episode:                 #1506
+  Asset:                   SOL_USDT
+  Timestamp:               2023-01-14 00:35:00
+  Action:                  SELL
+  Price:                   $20.48
+  Size:                    472.088016
+  PnL:                     $928.98 
+  Fees Paid:               $25.14
+  Net Profit:              $903.84
+
+================================================================================
+RANK #8
+================================================================================
+  Episode:                 #5799
+  Asset:                   SOL_USDT
+  Timestamp:               2022-11-09 18:45:00
+  Action:                  SELL
+  Price:                   $14.51
+  Size:                    511.871683
+  PnL:                     $898.37 
+  Fees Paid:               $19.30
+  Net Profit:              $879.06
+
+================================================================================
+RANK #9
+================================================================================
+  Episode:                 #30
+  Asset:                   AVAX_USDT
+  Timestamp:               2021-08-21 08:20:00
+  Action:                  SELL
+  Price:                   $47.15
+  Size:                    218.142777
+  PnL:                     $876.11 
+  Fees Paid:               $26.74
+  Net Profit:              $849.37
+
+================================================================================
+RANK #10
+================================================================================
+  Episode:                 #6809
+  Asset:                   SOL_USDT
+  Timestamp:               2021-01-07 00:35:00
+  Action:                  SELL
+  Price:                   $2.36
+  Size:                    4390.177688
+  PnL:                     $869.95 
+  Fees Paid:               $26.91
+  Net Profit:              $843.04
+
+
+====================================================================================================
+9. RECOMMENDATIONS
+====================================================================================================
+TRAINING ANALYSIS:
+    High variance in recent episodes
+      Consider training for more episodes
+    Agent showing negative rewards
+      Review reward function and features
+    Epsilon still high - may need more episodes
+
+NEXT STEPS:
+  1. Review top performing trades and patterns
+  2. Test agent on different market conditions
+  3. Consider walk-forward validation
+  4. Start paper trading if performance is consistent

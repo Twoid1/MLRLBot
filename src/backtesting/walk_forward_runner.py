@@ -1179,7 +1179,7 @@ def run_walk_forward_validation(
         'test_end_date': '2025-11-20',
         'initial_balance': 10000,
         'fee': 0.001,  # ✅ FIXED: Match training
-        'slippage': 0.0005,  # ✅ FIXED: Match training
+        'slippage': 0.0001,  # ✅ FIXED: Match training
         # Explainability
         'explain': explain,
         'explain_frequency': explain_frequency,
