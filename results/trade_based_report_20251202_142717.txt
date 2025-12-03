@@ -1,0 +1,102 @@
+================================================================================
+TRADE-BASED TRAINING REPORT
+================================================================================
+Generated: 2025-12-02 14:27:17
+
+OVERALL PERFORMANCE
+----------------------------------------
+  Total Episodes:       8000
+  Completed Trades:     8000
+  Win Rate:             37.9%
+  Avg P&L per Trade:    -0.18%
+  Total P&L:            -1456.83%
+  Avg Reward:           -0.20
+  Avg Hold Duration:    9 steps (46 min)
+
+PER-ASSET PERFORMANCE
+----------------------------------------
+  ADA_USDT:
+    Trades: 1653, Win Rate: 38%, Avg P&L: -0.19%, Avg Hold: 9 steps
+  AVAX_USDT:
+    Trades: 1586, Win Rate: 41%, Avg P&L: -0.19%, Avg Hold: 9 steps
+  DOT_USDT:
+    Trades: 1553, Win Rate: 38%, Avg P&L: -0.15%, Avg Hold: 9 steps
+  ETH_USDT:
+    Trades: 1590, Win Rate: 33%, Avg P&L: -0.16%, Avg Hold: 9 steps
+  SOL_USDT:
+    Trades: 1618, Win Rate: 39%, Avg P&L: -0.22%, Avg Hold: 9 steps
+
+TERMINATION BREAKDOWN
+----------------------------------------
+  agent_exit: 7734 (96.7%)
+  stop_loss: 213 (2.7%)
+  take_profit: 53 (0.7%)
+
+LEARNING PROGRESS
+----------------------------------------
+  First 100 episodes:
+    Win Rate: 22%, Avg P&L: -0.12%, Avg Hold: 2 steps
+  Last 100 episodes:
+    Win Rate: 45%, Avg P&L: -0.10%, Avg Hold: 9 steps
+  Improvement:
+    Win Rate: +23.0pp
+    Avg P&L:  +0.03%
+    Avg Hold: +7 steps
+
+CONFIGURATION v2.0
+----------------------------------------
+  Assets:           ['SOL_USDT', 'AVAX_USDT', 'ADA_USDT', 'ETH_USDT', 'DOT_USDT']
+  Timeframes:       ['5m', '15m', '1h']
+  Episodes:         8000
+
+  Timeout Settings:
+    Max Wait Steps:   200
+    Max Hold Steps:   300
+
+  Risk Settings:
+    Stop Loss:        3.0%
+    Take Profit:      3.0%
+    Fee Rate:         0.10%
+    Slippage:         0.05%
+
+  Reward Tuning (v2.0):
+    Hold Bonus Start:       6 steps (was 36)
+    Hold Bonus Per Step:    +0.08 (was 0.01)
+    Max Hold Bonus:         3.0
+    Early Exit Penalty:     -1.0 (before 12 steps)
+    Take Profit Bonus:      +2.0 (was 0.5)
+    Agent Exit Bonus:       +0.0 (was 0.2)
+    Early Winner Mult:      5%-100% (was 30%-100%)
+
+REWARD SYSTEM v2.0 (Optimized for Patience)
+----------------------------------------
+  SEARCHING Phase (Agent is FLAT):
+    - WAIT action:  Reward = 0
+    - ENTER action: Reward = 0 (wait for trade outcome)
+    - Timeout:      Reward = -2.0 (penalty for not trading)
+
+  IN_TRADE Phase (Agent is LONG):
+    - HOLD action:  Reward = 0
+    - EXIT action:  Reward = Trade P&L × 100 (modified by duration)
+    - Stop-Loss:    Reward = Trade P&L × 100 (3% = -3.0)
+    - Take-Profit:  Reward = Trade P&L × 100 + 2.0 bonus
+    - Timeout:      Reward = Trade P&L - 1.0 penalty
+
+  NEW: Early Exit Penalty:
+    - Exit before 12 steps: penalty up to -1.0
+    - Scales from max penalty (immediate) to 0 (at threshold)
+
+  Duration Bonuses (STRONGER):
+    - Hold >= 6 steps: +0.08 per extra step
+    - Max hold bonus: 3.0
+
+  Early Exit Multipliers (HARSHER for winners):
+    - Profitable early exit: 5%-100% of reward
+    - Losing early exit: 100%-150% of loss (cut losers = good!)
+
+  Agent Exit Bonus:
+    - Profitable agent exit: +0.0 (REMOVED - was +0.2)
+
+================================================================================
+END OF REPORT
+================================================================================

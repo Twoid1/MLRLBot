@@ -216,25 +216,56 @@ class TradeBasedTrainer:
             # Environment type
             'environment_type': 'trade_based',  # 'trade_based' or 'time_based'
             
-            # Trade-based specific settings
+            # ═══════════════════════════════════════════════════════════════════════
+            # TRADE-BASED SETTINGS v3.0 - ASYMMETRIC REWARDS
+            # ═══════════════════════════════════════════════════════════════════════
             'trade_config': {
-                'max_wait_steps': 250,       # Max steps to find entry
-                'max_hold_steps': 300,       # Max steps to hold trade
-                'min_hold_for_bonus': 36,    # Min hold for bonus (3 hours on 5m)
-                'no_trade_penalty': -2.0,    # Penalty for not trading
-                'timeout_exit_penalty': -1.0, # Penalty for forced exit
+                # Timeouts
+                'max_wait_steps': 250,           # Max steps to find entry
+                'max_hold_steps': 300,           # Max steps to hold trade
+                
+                # Penalties
+                'no_trade_penalty': -2.0,        # Penalty for not trading
+                'timeout_exit_penalty': -1.0,    # Penalty for forced exit
+                'min_hold_before_penalty': 12,   # Min steps before no early penalty
+                'early_exit_penalty_max': -1.0,  # Max penalty for immediate exit
+                
+                # ═══════════════════════════════════════════════════════════════════
+                # ASYMMETRIC REWARD SYSTEM v3.0 (NEW!)
+                # ═══════════════════════════════════════════════════════════════════
+                # WINS: Scaled (bigger wins = bigger rewards)
+                # LOSSES: Constant (bounded downside, removes fear)
+                'use_asymmetric_rewards': True,  # Enable asymmetric system
+                'constant_loss_reward': -1.0,    # All losses = -1.0 (regardless of size!)
+                
+                # Hold Duration Bonus (only for wins)
+                'hold_duration_bonus': 0.08,     # +0.08 per step held
+                'min_hold_for_bonus': 6,         # Start bonus at 6 steps (30 min)
+                'max_hold_bonus': 3.0,           # Cap at 3.0
+                
+                # Take-profit bonus - BIG reward for letting winners run
+                'take_profit_bonus': 2.0,        # +2.0 for hitting TP
+                
+                # Agent exit bonus - REMOVED (was causing quick exits)
+                'agent_profitable_exit_bonus': 0.0,
+                
+                # Early Exit Multipliers (only for wins now)
+                'early_winner_multiplier_min': 0.05,  # Only 5% reward for immediate exit
+                'early_winner_multiplier_max': 1.0,
+                'early_loser_multiplier_min': 1.0,    # Not used with asymmetric
+                'early_loser_multiplier_max': 1.5,    # Not used with asymmetric
             },
             
             # RL training settings
             'rl_training_mode': 'random',
-            'rl_episodes': 8000,  # More episodes since each is shorter
+            'rl_episodes': 8000,  # More episodes for learning patience
             
             # Network architecture (same as before)
             'rl_hidden_dims': [128, 64],
             'use_double_dqn': True,
             'use_dueling_dqn': True,
-            'rl_batch_size': 256,
-            'rl_memory_size': 50000,
+            'rl_batch_size': 512,
+            'rl_memory_size': 20000,
             
             # Exploration (slower decay since episodes are shorter)
             'epsilon_start': 1.0,
@@ -252,8 +283,8 @@ class TradeBasedTrainer:
             'initial_balance': 10000,
             'fee_rate': 0.001,
             'slippage': 0.0005,
-            'stop_loss': 0.04,
-            'take_profit': 0.08,
+            'stop_loss': 0.03,           # 3% stop loss
+            'take_profit': 0.04,         # 3% take profit (was 6% - unreachable!)
             
             # Progress tracking
             'log_interval': 50,
@@ -500,14 +531,41 @@ class TradeBasedTrainer:
         # [STEP 2: Create trade config and first environment]
         logger.info("\n[2/5] Creating trade-based environments...")
         
-        # Create trade configuration
+        # Create trade configuration with v3.0 asymmetric reward parameters
         tc = self.config.get('trade_config', {})
         trade_config = TradeConfig(
+            # Timeouts
             max_wait_steps=tc.get('max_wait_steps', 200),
             max_hold_steps=tc.get('max_hold_steps', 300),
-            min_hold_for_bonus=tc.get('min_hold_for_bonus', 36),
+            
+            # Penalties
             no_trade_penalty=tc.get('no_trade_penalty', -2.0),
             timeout_exit_penalty=tc.get('timeout_exit_penalty', -1.0),
+            min_hold_before_penalty=tc.get('min_hold_before_penalty', 12),
+            early_exit_penalty_max=tc.get('early_exit_penalty_max', -1.0),
+            
+            # ASYMMETRIC REWARD SYSTEM v3.0
+            use_asymmetric_rewards=tc.get('use_asymmetric_rewards', True),
+            constant_loss_reward=tc.get('constant_loss_reward', -1.0),
+            
+            # Hold Duration Bonus (only for wins)
+            hold_duration_bonus=tc.get('hold_duration_bonus', 0.08),
+            min_hold_for_bonus=tc.get('min_hold_for_bonus', 6),
+            max_hold_bonus=tc.get('max_hold_bonus', 3.0),
+            
+            # Take-profit bonus
+            take_profit_bonus=tc.get('take_profit_bonus', 2.0),
+            
+            # Agent exit bonus (disabled)
+            agent_profitable_exit_bonus=tc.get('agent_profitable_exit_bonus', 0.0),
+            
+            # Early Exit Multipliers (only for wins now)
+            early_winner_multiplier_min=tc.get('early_winner_multiplier_min', 0.05),
+            early_winner_multiplier_max=tc.get('early_winner_multiplier_max', 1.0),
+            early_loser_multiplier_min=tc.get('early_loser_multiplier_min', 1.0),
+            early_loser_multiplier_max=tc.get('early_loser_multiplier_max', 1.5),
+            
+            # Trading costs
             fee_rate=self.config['fee_rate'],
             slippage=self.config.get('slippage', 0.0005)
         )
@@ -524,7 +582,7 @@ class TradeBasedTrainer:
             fee_rate=self.config['fee_rate'],
             slippage=self.config.get('slippage', 0.0005),
             stop_loss=self.config.get('stop_loss', 0.03),
-            take_profit=self.config.get('take_profit', 0.06),
+            take_profit=self.config.get('take_profit', 0.03),  # 3% TP (was 6% - unreachable!)
             asset=first_asset,
             trade_config=trade_config
         )
@@ -574,7 +632,7 @@ class TradeBasedTrainer:
                     fee_rate=self.config['fee_rate'],
                     slippage=self.config.get('slippage', 0.0005),
                     stop_loss=self.config.get('stop_loss', 0.03),
-                    take_profit=self.config.get('take_profit', 0.06),
+                    take_profit=self.config.get('take_profit', 0.03),  # 3% TP
                     asset=asset,
                     trade_config=trade_config
                 )
@@ -711,15 +769,45 @@ class TradeBasedTrainer:
         steps = 0
         done = False
         
+        # ═══════════════════════════════════════════════════════════════
+        # TRACKING FOR DIAGNOSTIC REPORT
+        # ═══════════════════════════════════════════════════════════════
+        search_steps = 0           # Steps spent searching for entry
+        hold_steps = 0             # Steps spent holding
+        search_actions = []        # Actions during search phase (0=WAIT, 1=ENTER)
+        hold_actions = []          # Actions during hold phase (0=HOLD, 1=EXIT)
+        entry_price = None
+        exit_price = None
+        in_trade = False
+        
         # Safety limit (should never hit this with proper timeout config)
         max_safety_steps = 1000
         
         while not done and steps < max_safety_steps:
+            # Track which phase we're in
+            was_in_trade = in_trade
+            
             # Get action from agent
             action = self.rl_agent.act(state, training=True)
             
+            # Track actions by phase
+            if not in_trade:
+                search_actions.append(action)
+                search_steps += 1
+                if action == 1:  # ENTER
+                    in_trade = True
+            else:
+                hold_actions.append(action)
+                hold_steps += 1
+            
             # Environment step
             next_state, reward, done, truncated, info = env.step(action)
+            
+            # Track entry/exit prices
+            if 'entry_price' in info and entry_price is None:
+                entry_price = info.get('entry_price')
+            if 'exit_price' in info:
+                exit_price = info.get('exit_price')
             
             # Store experience
             # Note: For trade-based, most rewards are 0 until trade completes
@@ -754,7 +842,7 @@ class TradeBasedTrainer:
         
         self.rl_agent.episode_count += 1
         
-        # Build stats
+        # Build comprehensive stats
         stats = {
             'episode': episode_num + 1,
             'asset': asset,
@@ -762,7 +850,16 @@ class TradeBasedTrainer:
             'steps': steps,
             'epsilon': self.rl_agent.epsilon,
             'episode_time': time.time() - episode_start,
-            'termination': info.get('termination', 'unknown')
+            'termination': info.get('termination', 'unknown'),
+            
+            # Diagnostic data
+            'search_steps': search_steps,
+            'hold_steps': hold_steps,
+            'search_wait_count': search_actions.count(0) if search_actions else 0,
+            'search_enter_count': search_actions.count(1) if search_actions else 0,
+            'hold_hold_count': hold_actions.count(0) if hold_actions else 0,
+            'hold_exit_count': hold_actions.count(1) if hold_actions else 0,
+            'entered_trade': in_trade or (entry_price is not None),
         }
         
         # Add trade result if available
@@ -772,6 +869,10 @@ class TradeBasedTrainer:
             stats['trade_pnl_pct'] = tr.get('pnl_pct', 0)
             stats['hold_duration'] = tr.get('hold_duration', 0)
             stats['exit_reason'] = tr.get('exit_reason', 'unknown')
+            stats['entry_price'] = tr.get('entry_price', 0)
+            stats['exit_price'] = tr.get('exit_price', 0)
+            stats['fees_paid'] = tr.get('fees_paid', 0)
+            stats['gross_pnl'] = tr.get('gross_pnl', 0)
             
             # Track for analysis
             self.episode_trade_results.append({
@@ -893,13 +994,21 @@ class TradeBasedTrainer:
 
     def _generate_trade_based_report(self, episode_results: list):
         """
-        Generate COMPREHENSIVE trade-based training report with diagnostics
+        Generate COMPREHENSIVE trade-based training diagnostic report
         
-        This report is designed to help you understand:
-        1. What the agent learned
-        2. What's working and what isn't
-        3. Specific recommendations for improvement
+        Sections:
+        1. Executive Summary (with expectancy calculation)
+        2. P&L Distribution Analysis (histogram, best/worst trades)
+        3. Hold Duration Analysis
+        4. Entry Behavior Analysis
+        5. Exit Behavior Analysis
+        6. Per-Asset Detailed Analysis
+        7. Learning Progress Over Time (5 segments)
+        8. Diagnostic Issues & Recommendations
+        9. Configuration v2.0
+        10. Reward System Reference
         """
+        from datetime import datetime
         
         report_lines = []
         report_lines.append("="*100)
@@ -908,460 +1017,440 @@ class TradeBasedTrainer:
         report_lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         report_lines.append("")
         
+        # Filter to trades with results
+        trades = [e for e in episode_results if 'trade_pnl_pct' in e]
+        total_episodes = len(episode_results)
+        
+        if not trades:
+            report_lines.append("No completed trades to analyze.")
+            self._save_report(report_lines)
+            return
+        
         # ═══════════════════════════════════════════════════════════════════════════
         # SECTION 1: EXECUTIVE SUMMARY
         # ═══════════════════════════════════════════════════════════════════════════
-        
-        total_episodes = len(episode_results)
-        trades_with_results = [e for e in episode_results if 'trade_pnl_pct' in e]
-        
         report_lines.append("|" + "="*98 + "|")
-        report_lines.append("|" + " EXECUTIVE SUMMARY".ljust(98) + "|")
+        report_lines.append("| EXECUTIVE SUMMARY" + " "*80 + "|")
         report_lines.append("|" + "="*98 + "|")
+        report_lines.append("")
         
-        if trades_with_results:
-            profitable = sum(1 for e in trades_with_results if e['trade_pnl_pct'] > 0)
-            win_rate = profitable / len(trades_with_results)
-            avg_pnl = np.mean([e['trade_pnl_pct'] for e in trades_with_results]) * 100
-            total_pnl = sum(e['trade_pnl_pct'] for e in trades_with_results) * 100
-            avg_hold = np.mean([e.get('hold_duration', 0) for e in trades_with_results])
-            avg_reward = np.mean([e['total_reward'] for e in trades_with_results])
-            
-            # Calculate key metrics
-            avg_win = np.mean([e['trade_pnl_pct'] for e in trades_with_results if e['trade_pnl_pct'] > 0]) * 100 if profitable > 0 else 0
-            avg_loss = np.mean([e['trade_pnl_pct'] for e in trades_with_results if e['trade_pnl_pct'] <= 0]) * 100 if (len(trades_with_results) - profitable) > 0 else 0
-            
-            # Risk/Reward ratio
-            risk_reward = abs(avg_win / avg_loss) if avg_loss != 0 else 0
-            
-            # Expectancy
-            expectancy = (win_rate * avg_win) + ((1 - win_rate) * avg_loss)
-            
-            report_lines.append("")
-            report_lines.append(f"  Total Trades:      {len(trades_with_results):,}")
-            report_lines.append(f"  Win Rate:          {win_rate:.1%}")
-            report_lines.append(f"  Avg P&L:           {avg_pnl:+.2f}%")
-            report_lines.append(f"  Total P&L:         {total_pnl:+.2f}%")
-            report_lines.append(f"  Avg Hold:          {avg_hold:.1f} steps ({avg_hold*5:.0f} min)")
-            report_lines.append("")
-            report_lines.append(f"  Avg Win:           {avg_win:+.2f}%")
-            report_lines.append(f"  Avg Loss:          {avg_loss:+.2f}%")
-            report_lines.append(f"  Risk/Reward:       {risk_reward:.2f}")
-            report_lines.append(f"  Expectancy:        {expectancy:+.3f}% per trade")
-            report_lines.append("")
-            
-            # Quick verdict
-            if expectancy > 0:
-                report_lines.append("   VERDICT: Positive expectancy - system has potential")
-            elif expectancy > -0.1:
-                report_lines.append("    VERDICT: Near breakeven - needs fine-tuning")
-            else:
-                report_lines.append("   VERDICT: Negative expectancy - significant changes needed")
+        profitable = sum(1 for t in trades if t['trade_pnl_pct'] > 0)
+        win_rate = profitable / len(trades)
+        avg_pnl = np.mean([t['trade_pnl_pct'] for t in trades]) * 100
+        total_pnl = sum(t['trade_pnl_pct'] for t in trades) * 100
+        avg_hold = np.mean([t.get('hold_duration', 0) for t in trades])
         
+        # Calculate avg win and avg loss
+        winners = [t['trade_pnl_pct'] * 100 for t in trades if t['trade_pnl_pct'] > 0]
+        losers = [t['trade_pnl_pct'] * 100 for t in trades if t['trade_pnl_pct'] <= 0]
+        
+        avg_win = np.mean(winners) if winners else 0
+        avg_loss = np.mean(losers) if losers else 0
+        
+        # Risk/Reward ratio
+        rr_ratio = abs(avg_win / avg_loss) if avg_loss != 0 else 0
+        
+        # Expectancy per trade
+        expectancy = (win_rate * avg_win) + ((1 - win_rate) * avg_loss)
+        
+        report_lines.append(f"  Total Trades:      {len(trades):,}")
+        report_lines.append(f"  Win Rate:          {win_rate:.1%}")
+        report_lines.append(f"  Avg P&L:           {avg_pnl:+.2f}%")
+        report_lines.append(f"  Total P&L:         {total_pnl:+.2f}%")
+        report_lines.append(f"  Avg Hold:          {avg_hold:.1f} steps ({avg_hold*5:.0f} min)")
+        report_lines.append("")
+        report_lines.append(f"  Avg Win:           {avg_win:+.2f}%")
+        report_lines.append(f"  Avg Loss:          {avg_loss:+.2f}%")
+        report_lines.append(f"  Risk/Reward:       {rr_ratio:.2f}")
+        report_lines.append(f"  Expectancy:        {expectancy:+.3f}% per trade")
+        report_lines.append("")
+        
+        if expectancy > 0.05:
+            report_lines.append("    VERDICT: Positive expectancy - system is profitable!")
+        elif expectancy > -0.05:
+            report_lines.append("    VERDICT: Near breakeven - needs optimization")
+        else:
+            report_lines.append("    VERDICT: Negative expectancy - significant changes needed")
         report_lines.append("")
         
         # ═══════════════════════════════════════════════════════════════════════════
         # SECTION 2: P&L DISTRIBUTION ANALYSIS
         # ═══════════════════════════════════════════════════════════════════════════
-        
         report_lines.append("|" + "="*98 + "|")
-        report_lines.append("|" + " P&L DISTRIBUTION ANALYSIS".ljust(98) + "|")
+        report_lines.append("| P&L DISTRIBUTION ANALYSIS" + " "*72 + "|")
         report_lines.append("|" + "="*98 + "|")
+        report_lines.append("")
         
-        if trades_with_results:
-            pnl_values = [e['trade_pnl_pct'] * 100 for e in trades_with_results]
-            
-            # Percentiles
-            p5 = np.percentile(pnl_values, 5)
-            p25 = np.percentile(pnl_values, 25)
-            p50 = np.percentile(pnl_values, 50)
-            p75 = np.percentile(pnl_values, 75)
-            p95 = np.percentile(pnl_values, 95)
-            
-            report_lines.append("")
-            report_lines.append("  P&L Percentiles:")
-            report_lines.append(f"    5th:   {p5:+.2f}%  (worst 5% of trades)")
-            report_lines.append(f"    25th:  {p25:+.2f}%")
-            report_lines.append(f"    50th:  {p50:+.2f}%  (median)")
-            report_lines.append(f"    75th:  {p75:+.2f}%")
-            report_lines.append(f"    95th:  {p95:+.2f}%  (best 5% of trades)")
-            report_lines.append("")
-            
-            # Best and worst trades
-            sorted_trades = sorted(trades_with_results, key=lambda x: x['trade_pnl_pct'])
-            
-            report_lines.append("  Worst 5 Trades:")
-            for i, t in enumerate(sorted_trades[:5]):
-                report_lines.append(f"    {i+1}. {t['asset']}: {t['trade_pnl_pct']*100:+.2f}% (held {t.get('hold_duration', 0)} steps, {t.get('exit_reason', 'unknown')} exit)")
-            
-            report_lines.append("")
-            report_lines.append("  Best 5 Trades:")
-            for i, t in enumerate(sorted_trades[-5:][::-1]):
-                report_lines.append(f"    {i+1}. {t['asset']}: {t['trade_pnl_pct']*100:+.2f}% (held {t.get('hold_duration', 0)} steps, {t.get('exit_reason', 'unknown')} exit)")
-            
-            # Distribution histogram (text-based)
-            report_lines.append("")
-            report_lines.append("  P&L Distribution (text histogram):")
-            bins = [(-10, -3), (-3, -2), (-2, -1), (-1, -0.5), (-0.5, 0), (0, 0.5), (0.5, 1), (1, 2), (2, 3), (3, 10)]
-            for low, high in bins:
-                count = sum(1 for p in pnl_values if low <= p < high)
-                pct = count / len(pnl_values) * 100
-                bar = "|" * int(pct / 2)
-                label = f"{low:+.1f}% to {high:+.1f}%"
-                report_lines.append(f"    {label:>18}: {bar:<25} {count:>4} ({pct:>5.1f}%)")
+        pnl_values = [t['trade_pnl_pct'] * 100 for t in trades]
         
+        report_lines.append("  P&L Percentiles:")
+        report_lines.append(f"    5th:   {np.percentile(pnl_values, 5):+.2f}%  (worst 5% of trades)")
+        report_lines.append(f"    25th:  {np.percentile(pnl_values, 25):+.2f}%")
+        report_lines.append(f"    50th:  {np.percentile(pnl_values, 50):+.2f}%  (median)")
+        report_lines.append(f"    75th:  {np.percentile(pnl_values, 75):+.2f}%")
+        report_lines.append(f"    95th:  {np.percentile(pnl_values, 95):+.2f}%  (best 5% of trades)")
+        report_lines.append("")
+        
+        # Worst 5 trades
+        sorted_trades = sorted(trades, key=lambda x: x['trade_pnl_pct'])
+        report_lines.append("  Worst 5 Trades:")
+        for i, t in enumerate(sorted_trades[:5]):
+            pnl = t['trade_pnl_pct'] * 100
+            hold = t.get('hold_duration', 0)
+            exit_r = t.get('termination', 'unknown')
+            asset = t.get('asset', 'unknown')
+            report_lines.append(f"    {i+1}. {asset}: {pnl:+.2f}% (held {hold} steps, {exit_r} exit)")
+        report_lines.append("")
+        
+        # Best 5 trades
+        report_lines.append("  Best 5 Trades:")
+        for i, t in enumerate(sorted_trades[-5:][::-1]):
+            pnl = t['trade_pnl_pct'] * 100
+            hold = t.get('hold_duration', 0)
+            exit_r = t.get('termination', 'unknown')
+            asset = t.get('asset', 'unknown')
+            report_lines.append(f"    {i+1}. {asset}: {pnl:+.2f}% (held {hold} steps, {exit_r} exit)")
+        report_lines.append("")
+        
+        # Text histogram
+        report_lines.append("  P&L Distribution (text histogram):")
+        bins = [(-10, -3), (-3, -2), (-2, -1), (-1, -0.5), (-0.5, 0), (0, 0.5), (0.5, 1), (1, 2), (2, 3), (3, 10)]
+        max_count = 0
+        bin_counts = []
+        for low, high in bins:
+            count = sum(1 for p in pnl_values if low <= p < high)
+            bin_counts.append(count)
+            max_count = max(max_count, count)
+        
+        for i, (low, high) in enumerate(bins):
+            count = bin_counts[i]
+            pct = count / len(trades) * 100
+            bar_len = int(count / max_count * 20) if max_count > 0 else 0
+            bar = "|" * bar_len
+            report_lines.append(f"    {low:+6.1f}% to {high:+5.1f}%: {bar:20s} {count:5d} ({pct:5.1f}%)")
         report_lines.append("")
         
         # ═══════════════════════════════════════════════════════════════════════════
         # SECTION 3: HOLD DURATION ANALYSIS
         # ═══════════════════════════════════════════════════════════════════════════
-        
         report_lines.append("|" + "="*98 + "|")
-        report_lines.append("|" + " HOLD DURATION ANALYSIS".ljust(98) + "|")
+        report_lines.append("| HOLD DURATION ANALYSIS" + " "*75 + "|")
         report_lines.append("|" + "="*98 + "|")
+        report_lines.append("")
         
-        if trades_with_results:
-            hold_values = [e.get('hold_duration', 0) for e in trades_with_results]
-            min_hold_bonus = self.config.get('trade_config', {}).get('min_hold_for_bonus', 36)
-            
-            report_lines.append("")
-            report_lines.append(f"  Min Hold for Bonus: {min_hold_bonus} steps ({min_hold_bonus*5} min)")
-            report_lines.append("")
-            
-            # Hold duration stats
-            report_lines.append("  Hold Duration Stats:")
-            report_lines.append(f"    Min:     {min(hold_values)} steps ({min(hold_values)*5} min)")
-            report_lines.append(f"    Max:     {max(hold_values)} steps ({max(hold_values)*5} min)")
-            report_lines.append(f"    Avg:     {np.mean(hold_values):.1f} steps ({np.mean(hold_values)*5:.0f} min)")
-            report_lines.append(f"    Median:  {np.median(hold_values):.1f} steps ({np.median(hold_values)*5:.0f} min)")
-            report_lines.append("")
-            
-            # How many hit the minimum?
-            long_holds = sum(1 for h in hold_values if h >= min_hold_bonus)
-            report_lines.append(f"  Trades >= {min_hold_bonus} steps: {long_holds} ({long_holds/len(hold_values)*100:.1f}%)")
-            report_lines.append(f"  Trades <  {min_hold_bonus} steps: {len(hold_values) - long_holds} ({(len(hold_values) - long_holds)/len(hold_values)*100:.1f}%)")
-            report_lines.append("")
-            
-            # Hold duration by outcome
-            winners = [e for e in trades_with_results if e['trade_pnl_pct'] > 0]
-            losers = [e for e in trades_with_results if e['trade_pnl_pct'] <= 0]
-            
-            if winners:
-                avg_win_hold = np.mean([e.get('hold_duration', 0) for e in winners])
-                report_lines.append(f"  Avg Hold (Winners):  {avg_win_hold:.1f} steps ({avg_win_hold*5:.0f} min)")
-            if losers:
-                avg_loss_hold = np.mean([e.get('hold_duration', 0) for e in losers])
-                report_lines.append(f"  Avg Hold (Losers):   {avg_loss_hold:.1f} steps ({avg_loss_hold*5:.0f} min)")
-            
-            # Distribution
-            report_lines.append("")
-            report_lines.append("  Hold Duration Distribution:")
-            hold_bins = [(0, 5), (5, 10), (10, 20), (20, 36), (36, 60), (60, 100), (100, 300)]
-            for low, high in hold_bins:
-                count = sum(1 for h in hold_values if low <= h < high)
-                pct = count / len(hold_values) * 100
-                bar = "|" * int(pct / 2)
-                label = f"{low}-{high} steps"
-                report_lines.append(f"    {label:>15}: {bar:<25} {count:>4} ({pct:>5.1f}%)")
+        trade_cfg = self.config.get('trade_config', {})
+        min_hold_bonus = trade_cfg.get('min_hold_for_bonus', 6)
+        min_hold_penalty = trade_cfg.get('min_hold_before_penalty', 12)
         
+        hold_durations = [t.get('hold_duration', 0) for t in trades]
+        
+        report_lines.append(f"  Min Hold for Bonus: {min_hold_bonus} steps ({min_hold_bonus*5} min)")
+        report_lines.append(f"  Min Hold Before Penalty: {min_hold_penalty} steps ({min_hold_penalty*5} min)")
+        report_lines.append("")
+        report_lines.append("  Hold Duration Stats:")
+        report_lines.append(f"    Min:     {min(hold_durations)} steps ({min(hold_durations)*5} min)")
+        report_lines.append(f"    Max:     {max(hold_durations)} steps ({max(hold_durations)*5} min)")
+        report_lines.append(f"    Avg:     {np.mean(hold_durations):.1f} steps ({np.mean(hold_durations)*5:.0f} min)")
+        report_lines.append(f"    Median:  {np.median(hold_durations):.1f} steps ({np.median(hold_durations)*5:.0f} min)")
+        report_lines.append("")
+        
+        above_bonus = sum(1 for h in hold_durations if h >= min_hold_bonus)
+        below_penalty = sum(1 for h in hold_durations if h < min_hold_penalty)
+        report_lines.append(f"  Trades >= {min_hold_bonus} steps (bonus eligible): {above_bonus} ({above_bonus/len(trades)*100:.1f}%)")
+        report_lines.append(f"  Trades <  {min_hold_penalty} steps (penalty zone):  {below_penalty} ({below_penalty/len(trades)*100:.1f}%)")
+        report_lines.append("")
+        
+        # Avg hold for winners vs losers
+        winner_holds = [t.get('hold_duration', 0) for t in trades if t['trade_pnl_pct'] > 0]
+        loser_holds = [t.get('hold_duration', 0) for t in trades if t['trade_pnl_pct'] <= 0]
+        
+        if winner_holds and loser_holds:
+            avg_winner_hold = np.mean(winner_holds)
+            avg_loser_hold = np.mean(loser_holds)
+            report_lines.append(f"  Avg Hold (Winners):  {avg_winner_hold:.1f} steps ({avg_winner_hold*5:.0f} min)")
+            report_lines.append(f"  Avg Hold (Losers):   {avg_loser_hold:.1f} steps ({avg_loser_hold*5:.0f} min)")
+            
+            if avg_loser_hold > avg_winner_hold * 1.2:
+                report_lines.append("   WARNING: Holding losers longer than winners (bad habit!)")
+            elif avg_winner_hold > avg_loser_hold * 1.2:
+                report_lines.append("   GOOD: Letting winners run, cutting losers short")
+        report_lines.append("")
+        
+        # Hold duration histogram
+        report_lines.append("  Hold Duration Distribution:")
+        hold_bins = [(0, 5), (5, 10), (10, 20), (20, 36), (36, 60), (60, 100), (100, 300)]
+        max_hold_count = 0
+        hold_bin_counts = []
+        for low, high in hold_bins:
+            count = sum(1 for h in hold_durations if low <= h < high)
+            hold_bin_counts.append(count)
+            max_hold_count = max(max_hold_count, count)
+        
+        for i, (low, high) in enumerate(hold_bins):
+            count = hold_bin_counts[i]
+            pct = count / len(trades) * 100
+            bar_len = int(count / max_hold_count * 20) if max_hold_count > 0 else 0
+            bar = "|" * bar_len
+            report_lines.append(f"    {low:3d}-{high:3d} steps: {bar:20s} {count:5d} ({pct:5.1f}%)")
         report_lines.append("")
         
         # ═══════════════════════════════════════════════════════════════════════════
         # SECTION 4: ENTRY BEHAVIOR ANALYSIS
         # ═══════════════════════════════════════════════════════════════════════════
-        
         report_lines.append("|" + "="*98 + "|")
-        report_lines.append("|" + " ENTRY BEHAVIOR ANALYSIS".ljust(98) + "|")
+        report_lines.append("| ENTRY BEHAVIOR ANALYSIS" + " "*74 + "|")
         report_lines.append("|" + "="*98 + "|")
+        report_lines.append("")
         
+        # Check if we have search_steps data
         episodes_with_search = [e for e in episode_results if 'search_steps' in e]
         if episodes_with_search:
             search_times = [e['search_steps'] for e in episodes_with_search]
-            entered = [e for e in episodes_with_search if e.get('entered_trade', False)]
+            entries = [e for e in episodes_with_search if e.get('entered_trade', True)]
             
-            report_lines.append("")
-            report_lines.append(f"  Total Episodes:        {len(episodes_with_search)}")
-            report_lines.append(f"  Episodes with Entry:   {len(entered)} ({len(entered)/len(episodes_with_search)*100:.1f}%)")
+            report_lines.append(f"  Total Episodes: {len(episodes_with_search)}")
+            report_lines.append(f"  Episodes with Entry: {len(entries)} ({len(entries)/len(episodes_with_search)*100:.1f}%)")
             report_lines.append("")
             
-            if entered:
-                entry_search_times = [e['search_steps'] for e in entered]
+            if entries:
+                entry_search_times = [e['search_steps'] for e in entries]
                 report_lines.append("  Search Time Before Entry:")
-                report_lines.append(f"    Min:     {min(entry_search_times)} steps")
-                report_lines.append(f"    Max:     {max(entry_search_times)} steps")
-                report_lines.append(f"    Avg:     {np.mean(entry_search_times):.1f} steps")
-                report_lines.append(f"    Median:  {np.median(entry_search_times):.0f} steps")
+                report_lines.append(f"    Min:    {min(entry_search_times)} steps")
+                report_lines.append(f"    Max:    {max(entry_search_times)} steps")
+                report_lines.append(f"    Avg:    {np.mean(entry_search_times):.1f} steps")
+                report_lines.append(f"    Median: {np.median(entry_search_times):.1f} steps")
                 report_lines.append("")
                 
-                # Immediate entries (first step)
-                immediate_entries = sum(1 for e in entered if e['search_steps'] <= 1)
-                report_lines.append(f"  Immediate Entries (<=1 step): {immediate_entries} ({immediate_entries/len(entered)*100:.1f}%)")
-                
-                # Patient entries (>10 steps)
-                patient_entries = sum(1 for e in entered if e['search_steps'] > 10)
-                report_lines.append(f"  Patient Entries (>10 steps): {patient_entries} ({patient_entries/len(entered)*100:.1f}%)")
+                immediate_entries = sum(1 for s in entry_search_times if s <= 1)
+                patient_entries = sum(1 for s in entry_search_times if s > 10)
+                report_lines.append(f"  Immediate Entries (<=1 step): {immediate_entries} ({immediate_entries/len(entries)*100:.1f}%)")
+                report_lines.append(f"  Patient Entries (>10 steps):  {patient_entries} ({patient_entries/len(entries)*100:.1f}%)")
         else:
-            report_lines.append("")
             report_lines.append("  (Entry behavior data not available - run training with updated code)")
-        
         report_lines.append("")
         
         # ═══════════════════════════════════════════════════════════════════════════
         # SECTION 5: EXIT BEHAVIOR ANALYSIS
         # ═══════════════════════════════════════════════════════════════════════════
-        
         report_lines.append("|" + "="*98 + "|")
-        report_lines.append("|" + " EXIT BEHAVIOR ANALYSIS".ljust(98) + "|")
+        report_lines.append("| EXIT BEHAVIOR ANALYSIS" + " "*75 + "|")
         report_lines.append("|" + "="*98 + "|")
+        report_lines.append("")
         
-        if trades_with_results:
-            report_lines.append("")
-            
-            # Exit reason breakdown
-            exit_reasons = {}
-            for e in trades_with_results:
-                reason = e.get('exit_reason', e.get('termination', 'unknown'))
-                exit_reasons[reason] = exit_reasons.get(reason, 0) + 1
-            
-            report_lines.append("  Exit Reason Breakdown:")
-            for reason, count in sorted(exit_reasons.items(), key=lambda x: -x[1]):
-                pct = count / len(trades_with_results) * 100
-                
-                # Get avg P&L for this exit type
-                exit_trades = [e for e in trades_with_results if e.get('exit_reason', e.get('termination', '')) == reason]
-                if exit_trades:
-                    avg_exit_pnl = np.mean([e['trade_pnl_pct'] for e in exit_trades]) * 100
-                    avg_exit_hold = np.mean([e.get('hold_duration', 0) for e in exit_trades])
-                    report_lines.append(f"    {reason:15}: {count:>5} ({pct:>5.1f}%)  Avg P&L: {avg_exit_pnl:+.2f}%  Avg Hold: {avg_exit_hold:.0f} steps")
-                else:
-                    report_lines.append(f"    {reason:15}: {count:>5} ({pct:>5.1f}%)")
-            
-            # Immediate exits
-            episodes_with_hold_data = [e for e in episode_results if 'hold_hold_count' in e]
-            if episodes_with_hold_data:
-                immediate_exits = sum(1 for e in episodes_with_hold_data if e.get('hold_hold_count', 0) <= 1)
-                report_lines.append("")
-                report_lines.append(f"  Immediate Exits (<=1 HOLD action): {immediate_exits} ({immediate_exits/len(episodes_with_hold_data)*100:.1f}%)")
+        # Group by exit reason
+        exit_reasons = {}
+        for t in trades:
+            reason = t.get('termination', 'unknown')
+            if reason not in exit_reasons:
+                exit_reasons[reason] = []
+            exit_reasons[reason].append(t)
         
+        report_lines.append("  Exit Reason Breakdown:")
+        for reason in ['agent', 'stop_loss', 'take_profit', 'timeout', 'unknown']:
+            if reason in exit_reasons:
+                group = exit_reasons[reason]
+                count = len(group)
+                pct = count / len(trades) * 100
+                avg_pnl_r = np.mean([t['trade_pnl_pct'] * 100 for t in group])
+                avg_hold_r = np.mean([t.get('hold_duration', 0) for t in group])
+                report_lines.append(f"    {reason:14s}: {count:5d} ({pct:5.1f}%)  Avg P&L: {avg_pnl_r:+.2f}%  Avg Hold: {avg_hold_r:.0f} steps")
+        report_lines.append("")
+        
+        # Check for immediate exits (hold_hold_count if available)
+        episodes_with_hold_data = [e for e in trades if 'hold_hold_count' in e]
+        if episodes_with_hold_data:
+            immediate_exits = sum(1 for e in episodes_with_hold_data if e.get('hold_hold_count', 0) <= 1)
+            report_lines.append(f"  Immediate Exits (<=1 HOLD action): {immediate_exits} ({immediate_exits/len(episodes_with_hold_data)*100:.1f}%)")
+            if immediate_exits / len(episodes_with_hold_data) > 0.3:
+                report_lines.append("   WARNING: Too many immediate exits - agent not holding positions")
         report_lines.append("")
         
         # ═══════════════════════════════════════════════════════════════════════════
-        # SECTION 6: PER-ASSET ANALYSIS
+        # SECTION 6: PER-ASSET DETAILED ANALYSIS
         # ═══════════════════════════════════════════════════════════════════════════
-        
         report_lines.append("|" + "="*98 + "|")
-        report_lines.append("|" + " PER-ASSET DETAILED ANALYSIS".ljust(98) + "|")
+        report_lines.append("| PER-ASSET DETAILED ANALYSIS" + " "*70 + "|")
         report_lines.append("|" + "="*98 + "|")
+        report_lines.append("")
         
         by_asset = {}
-        for e in episode_results:
-            asset = e['asset']
+        for t in trades:
+            asset = t.get('asset', 'unknown')
             if asset not in by_asset:
                 by_asset[asset] = []
-            by_asset[asset].append(e)
+            by_asset[asset].append(t)
         
-        report_lines.append("")
-        report_lines.append(f"  {'Asset':<12} {'Trades':>7} {'Win%':>7} {'Avg P&L':>9} {'Avg Hold':>10} {'R/R':>6} {'Expectancy':>12}")
+        report_lines.append("  Asset         Trades    Win%   Avg P&L   Avg Hold    R/R   Expectancy")
         report_lines.append("  " + "-"*75)
         
         for asset in sorted(by_asset.keys()):
-            episodes = by_asset[asset]
-            trades = [e for e in episodes if 'trade_pnl_pct' in e]
+            asset_trades = by_asset[asset]
+            a_count = len(asset_trades)
+            a_profitable = sum(1 for t in asset_trades if t['trade_pnl_pct'] > 0)
+            a_win_rate = a_profitable / a_count
+            a_avg_pnl = np.mean([t['trade_pnl_pct'] * 100 for t in asset_trades])
+            a_avg_hold = np.mean([t.get('hold_duration', 0) for t in asset_trades])
             
-            if trades:
-                profitable = sum(1 for e in trades if e['trade_pnl_pct'] > 0)
-                win_rate = profitable / len(trades)
-                avg_pnl = np.mean([e['trade_pnl_pct'] for e in trades]) * 100
-                avg_hold = np.mean([e.get('hold_duration', 0) for e in trades])
-                
-                # Risk/reward for this asset
-                wins = [e['trade_pnl_pct'] * 100 for e in trades if e['trade_pnl_pct'] > 0]
-                losses = [e['trade_pnl_pct'] * 100 for e in trades if e['trade_pnl_pct'] <= 0]
-                avg_win = np.mean(wins) if wins else 0
-                avg_loss = np.mean(losses) if losses else 0
-                rr = abs(avg_win / avg_loss) if avg_loss != 0 else 0
-                expectancy = (win_rate * avg_win) + ((1 - win_rate) * avg_loss)
-                
-                status = "Y" if expectancy > 0 else "N"
-                report_lines.append(f"  {asset:<12} {len(trades):>7} {win_rate:>6.1%} {avg_pnl:>+8.2f}% {avg_hold:>9.0f}s {rr:>6.2f} {expectancy:>+11.3f}% {status}")
-        
+            a_winners = [t['trade_pnl_pct'] * 100 for t in asset_trades if t['trade_pnl_pct'] > 0]
+            a_losers = [t['trade_pnl_pct'] * 100 for t in asset_trades if t['trade_pnl_pct'] <= 0]
+            a_avg_win = np.mean(a_winners) if a_winners else 0
+            a_avg_loss = np.mean(a_losers) if a_losers else 0
+            a_rr = abs(a_avg_win / a_avg_loss) if a_avg_loss != 0 else 0
+            a_expectancy = (a_win_rate * a_avg_win) + ((1 - a_win_rate) * a_avg_loss)
+            
+            status = "Y" if a_expectancy > 0 else "N"
+            report_lines.append(f"  {asset:12s} {a_count:6d}  {a_win_rate:5.1%}   {a_avg_pnl:+6.2f}%   {a_avg_hold:6.0f}s   {a_rr:5.2f}   {a_expectancy:+7.3f}% {status}")
         report_lines.append("")
         
         # ═══════════════════════════════════════════════════════════════════════════
-        # SECTION 7: LEARNING PROGRESS
+        # SECTION 7: LEARNING PROGRESS OVER TIME
         # ═══════════════════════════════════════════════════════════════════════════
-        
         report_lines.append("|" + "="*98 + "|")
-        report_lines.append("|" + " LEARNING PROGRESS OVER TIME".ljust(98) + "|")
+        report_lines.append("| LEARNING PROGRESS OVER TIME" + " "*70 + "|")
         report_lines.append("|" + "="*98 + "|")
+        report_lines.append("")
         
-        if len(episode_results) >= 500:
-            # Split into 5 segments
-            segment_size = len(episode_results) // 5
+        # Split into 5 segments
+        n_segments = 5
+        segment_size = len(trades) // n_segments
+        
+        if segment_size > 0:
+            report_lines.append("  Segment          Episodes     Win%    Avg P&L   Avg Hold   Avg Reward")
+            report_lines.append("  " + "-"*72)
+            
+            segment_stats = []
+            for i in range(n_segments):
+                start_idx = i * segment_size
+                end_idx = start_idx + segment_size if i < n_segments - 1 else len(trades)
+                segment = trades[start_idx:end_idx]
+                
+                s_profitable = sum(1 for t in segment if t['trade_pnl_pct'] > 0)
+                s_win_rate = s_profitable / len(segment)
+                s_avg_pnl = np.mean([t['trade_pnl_pct'] * 100 for t in segment])
+                s_avg_hold = np.mean([t.get('hold_duration', 0) for t in segment])
+                s_avg_reward = np.mean([t.get('total_reward', 0) for t in segment])
+                
+                segment_stats.append((s_win_rate, s_avg_pnl, s_avg_hold, s_avg_reward))
+                
+                report_lines.append(f"  {start_idx+1}-{end_idx}  {len(segment):12d}   {s_win_rate:5.1%}    {s_avg_pnl:+6.2f}%   {s_avg_hold:6.0f}s      {s_avg_reward:+.2f}")
             
             report_lines.append("")
-            report_lines.append(f"  {'Segment':<12} {'Episodes':>12} {'Win%':>8} {'Avg P&L':>10} {'Avg Hold':>10} {'Avg Reward':>12}")
-            report_lines.append("  " + "-"*70)
-            
-            for i in range(5):
-                start = i * segment_size
-                end = start + segment_size if i < 4 else len(episode_results)
-                segment = [e for e in episode_results[start:end] if 'trade_pnl_pct' in e]
-                
-                if segment:
-                    profitable = sum(1 for e in segment if e['trade_pnl_pct'] > 0)
-                    win_rate = profitable / len(segment)
-                    avg_pnl = np.mean([e['trade_pnl_pct'] for e in segment]) * 100
-                    avg_hold = np.mean([e.get('hold_duration', 0) for e in segment])
-                    avg_reward = np.mean([e['total_reward'] for e in segment])
-                    
-                    label = f"{start+1}-{end}"
-                    report_lines.append(f"  {label:<12} {len(segment):>12} {win_rate:>7.1%} {avg_pnl:>+9.2f}% {avg_hold:>9.0f}s {avg_reward:>+11.2f}")
-            
-            # Overall trend analysis
-            first_segment = [e for e in episode_results[:segment_size] if 'trade_pnl_pct' in e]
-            last_segment = [e for e in episode_results[-segment_size:] if 'trade_pnl_pct' in e]
-            
-            if first_segment and last_segment:
-                first_wr = sum(1 for e in first_segment if e['trade_pnl_pct'] > 0) / len(first_segment)
-                last_wr = sum(1 for e in last_segment if e['trade_pnl_pct'] > 0) / len(last_segment)
-                first_hold = np.mean([e.get('hold_duration', 0) for e in first_segment])
-                last_hold = np.mean([e.get('hold_duration', 0) for e in last_segment])
-                first_pnl = np.mean([e['trade_pnl_pct'] for e in first_segment]) * 100
-                last_pnl = np.mean([e['trade_pnl_pct'] for e in last_segment]) * 100
-                
-                report_lines.append("")
-                report_lines.append("  Improvement First -> Last Segment:")
-                report_lines.append(f"    Win Rate:     {first_wr:.1%} -> {last_wr:.1%}  ({(last_wr-first_wr)*100:+.1f}pp)")
-                report_lines.append(f"    Avg P&L:      {first_pnl:+.2f}% -> {last_pnl:+.2f}%  ({last_pnl-first_pnl:+.2f}%)")
-                report_lines.append(f"    Avg Hold:     {first_hold:.0f}s -> {last_hold:.0f}s  ({last_hold-first_hold:+.0f}s)")
-        else:
-            report_lines.append("")
-            report_lines.append("  (Need at least 500 episodes for detailed learning progress)")
-        
+            report_lines.append("  Improvement First -> Last Segment:")
+            first = segment_stats[0]
+            last = segment_stats[-1]
+            report_lines.append(f"    Win Rate:     {first[0]:.1%} -> {last[0]:.1%}  ({(last[0]-first[0])*100:+.1f}pp)")
+            report_lines.append(f"    Avg P&L:      {first[1]:+.2f}% -> {last[1]:+.2f}%  ({last[1]-first[1]:+.2f}%)")
+            report_lines.append(f"    Avg Hold:     {first[2]:.0f}s -> {last[2]:.0f}s  ({last[2]-first[2]:+.0f}s)")
         report_lines.append("")
         
         # ═══════════════════════════════════════════════════════════════════════════
         # SECTION 8: DIAGNOSTIC ISSUES & RECOMMENDATIONS
         # ═══════════════════════════════════════════════════════════════════════════
-        
         report_lines.append("|" + "="*98 + "|")
-        report_lines.append("|" + " DIAGNOSTIC ISSUES & RECOMMENDATIONS".ljust(98) + "|")
+        report_lines.append("|  DIAGNOSTIC ISSUES & RECOMMENDATIONS" + " "*58 + "|")
         report_lines.append("|" + "="*98 + "|")
+        report_lines.append("")
         
         issues = []
         recommendations = []
         
-        if trades_with_results:
-            # Issue 1: Hold duration too short
-            avg_hold = np.mean([e.get('hold_duration', 0) for e in trades_with_results])
-            min_hold_bonus = self.config.get('trade_config', {}).get('min_hold_for_bonus', 36)
-            
-            if avg_hold < min_hold_bonus * 0.5:
-                issues.append(f"CRITICAL: Avg hold ({avg_hold:.0f} steps) is < 50% of min bonus threshold ({min_hold_bonus})")
-                recommendations.append("-> INCREASE hold_duration_bonus from 0.01 to 0.05 or higher")
-                recommendations.append("-> INCREASE early exit penalty (change 0.3 multiplier to 0.1)")
-                recommendations.append("-> DECREASE min_hold_for_bonus from 36 to 20 (make bonus easier to achieve)")
-            elif avg_hold < min_hold_bonus:
-                issues.append(f"WARNING: Avg hold ({avg_hold:.0f} steps) is below min bonus threshold ({min_hold_bonus})")
-                recommendations.append("-> Slightly increase hold_duration_bonus")
-            
-            # Issue 2: Too many agent exits vs stop/take-profit
-            exit_reasons = {}
-            for e in trades_with_results:
-                reason = e.get('exit_reason', e.get('termination', 'unknown'))
-                exit_reasons[reason] = exit_reasons.get(reason, 0) + 1
-            
-            agent_exits = exit_reasons.get('agent', exit_reasons.get('agent_exit', 0))
-            sl_exits = exit_reasons.get('stop_loss', 0)
-            tp_exits = exit_reasons.get('take_profit', 0)
-            
-            if agent_exits / len(trades_with_results) > 0.95:
-                issues.append(f"CRITICAL: {agent_exits/len(trades_with_results)*100:.1f}% agent exits - not letting trades run")
-                recommendations.append("-> Agent is exiting too early instead of hitting stop-loss/take-profit")
-                recommendations.append("-> REDUCE the +0.2 bonus for profitable agent exits")
-                recommendations.append("-> ADD penalty for exiting before min hold duration")
-            
-            if tp_exits / len(trades_with_results) < 0.01:
-                issues.append(f"WARNING: Only {tp_exits} take-profit hits ({tp_exits/len(trades_with_results)*100:.2f}%)")
-                recommendations.append("-> Agent never lets winners run to take-profit")
-                recommendations.append("-> INCREASE take_profit bonus from 0.5 to 1.0 or higher")
-            
-            # Issue 3: Win rate too low
-            profitable = sum(1 for e in trades_with_results if e['trade_pnl_pct'] > 0)
-            win_rate = profitable / len(trades_with_results)
-            
-            if win_rate < 0.35:
-                issues.append(f"CRITICAL: Win rate ({win_rate:.1%}) is below 35%")
-                recommendations.append("-> Agent may be entering at wrong times")
-                recommendations.append("-> Consider LONGER search phase (increase max_wait_steps)")
-                recommendations.append("-> Review ML features being used for entry signals")
-            
-            # Issue 4: Negative expectancy
-            avg_pnl = np.mean([e['trade_pnl_pct'] for e in trades_with_results]) * 100
-            if avg_pnl < -0.1:
-                issues.append(f"CRITICAL: Negative avg P&L ({avg_pnl:+.2f}%)")
-                recommendations.append("-> Fees + slippage may be eating profits")
-                recommendations.append("-> Consider WIDER stop-loss (currently 3%)")
-                recommendations.append("-> Consider TIGHTER take-profit to lock in more wins")
-            
-            # Issue 5: Not enough exploration
-            episodes_with_search = [e for e in episode_results if 'search_steps' in e]
-            if episodes_with_search:
-                immediate_entries = sum(1 for e in episodes_with_search if e.get('search_steps', 0) <= 1)
-                if immediate_entries / len(episodes_with_search) > 0.8:
-                    issues.append(f"WARNING: {immediate_entries/len(episodes_with_search)*100:.1f}% immediate entries")
-                    recommendations.append("-> Agent enters too quickly without waiting for good setup")
-                    recommendations.append("-> Consider adding patience_bonus for waiting")
-            
-            # Issue 6: Large losses
-            big_losses = sum(1 for e in trades_with_results if e['trade_pnl_pct'] < -0.025)
-            if big_losses / len(trades_with_results) > 0.1:
-                issues.append(f"WARNING: {big_losses} trades ({big_losses/len(trades_with_results)*100:.1f}%) lost > 2.5%")
-                recommendations.append("-> Consider TIGHTER stop-loss (currently 3%)")
+        # Issue 1: Hold duration too short
+        if avg_hold < min_hold_bonus * 0.8:
+            issues.append(f"CRITICAL: Avg hold ({avg_hold:.0f} steps) is below bonus threshold ({min_hold_bonus})")
+            recommendations.append("-> Agent is not benefiting from hold bonus")
+            recommendations.append("-> Check if early exit penalty is working")
         
-        report_lines.append("")
+        # Issue 2: Too many agent exits
+        agent_exits = len(exit_reasons.get('agent', []))
+        agent_exit_pct = agent_exits / len(trades) * 100
+        if agent_exit_pct > 95:
+            issues.append(f"CRITICAL: {agent_exit_pct:.1f}% agent exits - not letting trades run")
+            recommendations.append("-> Agent is exiting before stop-loss/take-profit")
+            recommendations.append("-> Consider REDUCING agent exit opportunities")
+        
+        # Issue 3: No take-profit hits
+        tp_exits = len(exit_reasons.get('take_profit', []))
+        tp_pct = tp_exits / len(trades) * 100
+        if tp_pct < 1:
+            issues.append(f"WARNING: Only {tp_exits} take-profit hits ({tp_pct:.2f}%)")
+            recommendations.append("-> Take-profit level may be too far ({:.1f}%)".format(self.config.get('take_profit', 0.03) * 100))
+            recommendations.append("-> Consider LOWERING take-profit to 2-2.5%")
+        
+        # Issue 4: Low win rate
+        if win_rate < 0.35:
+            issues.append(f"WARNING: Low win rate ({win_rate:.1%})")
+            recommendations.append("-> May need better entry signals from ML")
+            recommendations.append("-> Consider longer search time (max_wait_steps)")
+        
+        # Issue 5: Negative expectancy
+        if expectancy < -0.1:
+            issues.append(f"CRITICAL: Negative expectancy ({expectancy:+.3f}%)")
+            recommendations.append("-> Fees + slippage may be eating profits")
+            recommendations.append("-> Need higher avg win OR higher win rate")
+        
+        # Issue 6: Holding losers longer than winners
+        if winner_holds and loser_holds:
+            if np.mean(loser_holds) > np.mean(winner_holds) * 1.3:
+                issues.append("WARNING: Holding losers 30%+ longer than winners")
+                recommendations.append("-> This is backwards! Cut losers, let winners run")
+                recommendations.append("-> Early exit multipliers may need adjustment")
+        
+        # Issue 7: Immediate entries
+        if episodes_with_search:
+            entries = [e for e in episodes_with_search if e.get('entered_trade', True)]
+            if entries:
+                immediate_pct = sum(1 for e in entries if e.get('search_steps', 0) <= 1) / len(entries)
+                if immediate_pct > 0.8:
+                    issues.append(f"WARNING: {immediate_pct:.0%} immediate entries")
+                    recommendations.append("-> Agent may be entering without waiting for good setup")
+                    recommendations.append("-> Consider adding patience_bonus for waiting")
+        
+        # Issue 8: Large losses
+        large_losses = sum(1 for p in pnl_values if p < -2.5)
+        if large_losses / len(trades) > 0.1:
+            issues.append(f"WARNING: {large_losses} trades ({large_losses/len(trades)*100:.1f}%) lost > 2.5%")
+            recommendations.append("-> Stop-loss may be too wide")
+            recommendations.append("-> Consider tighter stop-loss (2-2.5%)")
+        
         if issues:
             report_lines.append("  ISSUES DETECTED:")
             for issue in issues:
-                report_lines.append(f"    {issue}")
+                report_lines.append(f"     {issue}")
             report_lines.append("")
             report_lines.append("  RECOMMENDATIONS:")
             for rec in recommendations:
                 report_lines.append(f"    {rec}")
         else:
-            report_lines.append("  No critical issues detected")
-        
+            report_lines.append("   No critical issues detected!")
         report_lines.append("")
         
         # ═══════════════════════════════════════════════════════════════════════════
-        # SECTION 9: CONFIGURATION USED
+        # SECTION 9: CONFIGURATION v2.0
         # ═══════════════════════════════════════════════════════════════════════════
-        
         report_lines.append("|" + "="*98 + "|")
-        report_lines.append("|" + " CONFIGURATION USED".ljust(98) + "|")
+        report_lines.append("| CONFIGURATION USED" + " "*79 + "|")
         report_lines.append("|" + "="*98 + "|")
-        
         report_lines.append("")
+        
         report_lines.append("  Environment:")
         report_lines.append(f"    Assets:              {self.config.get('assets', [])}")
         report_lines.append(f"    Timeframes:          {self.config.get('timeframes', [])}")
         report_lines.append(f"    Episodes:            {self.config.get('rl_episodes', 'N/A')}")
         report_lines.append("")
         
-        trade_config = self.config.get('trade_config', {})
         report_lines.append("  Trade Settings:")
-        report_lines.append(f"    Max Wait Steps:      {trade_config.get('max_wait_steps', 200)}")
-        report_lines.append(f"    Max Hold Steps:      {trade_config.get('max_hold_steps', 300)}")
-        report_lines.append(f"    Min Hold for Bonus:  {trade_config.get('min_hold_for_bonus', 36)} steps")
-        report_lines.append(f"    No Trade Penalty:    {trade_config.get('no_trade_penalty', -2.0)}")
-        report_lines.append(f"    Timeout Exit Penalty:{trade_config.get('timeout_exit_penalty', -1.0)}")
-        report_lines.append(f"    Hold Duration Bonus: {trade_config.get('hold_duration_bonus', 0.01)} per step")
+        report_lines.append(f"    Max Wait Steps:      {trade_cfg.get('max_wait_steps', 200)}")
+        report_lines.append(f"    Max Hold Steps:      {trade_cfg.get('max_hold_steps', 300)}")
+        report_lines.append(f"    Min Hold for Bonus:  {trade_cfg.get('min_hold_for_bonus', 6)} steps")
+        report_lines.append(f"    Min Hold Penalty:    {trade_cfg.get('min_hold_before_penalty', 12)} steps")
+        report_lines.append(f"    No Trade Penalty:    {trade_cfg.get('no_trade_penalty', -2.0)}")
+        report_lines.append(f"    Timeout Exit Penalty:{trade_cfg.get('timeout_exit_penalty', -1.0)}")
+        report_lines.append(f"    Hold Duration Bonus: {trade_cfg.get('hold_duration_bonus', 0.08)} per step")
         report_lines.append("")
         
         report_lines.append("  Risk Settings:")
         report_lines.append(f"    Stop Loss:           {self.config.get('stop_loss', 0.03)*100:.1f}%")
-        report_lines.append(f"    Take Profit:         {self.config.get('take_profit', 0.06)*100:.1f}%")
+        report_lines.append(f"    Take Profit:         {self.config.get('take_profit', 0.03)*100:.1f}%")
         report_lines.append(f"    Fee Rate:            {self.config.get('fee_rate', 0.001)*100:.2f}%")
         report_lines.append(f"    Slippage:            {self.config.get('slippage', 0.0005)*100:.2f}%")
         report_lines.append("")
@@ -1369,32 +1458,63 @@ class TradeBasedTrainer:
         # ═══════════════════════════════════════════════════════════════════════════
         # SECTION 10: REWARD SYSTEM REFERENCE
         # ═══════════════════════════════════════════════════════════════════════════
-        
         report_lines.append("|" + "="*98 + "|")
-        report_lines.append("|" + " REWARD SYSTEM REFERENCE".ljust(98) + "|")
+        report_lines.append("| REWARD SYSTEM REFERENCE (v3.0 - ASYMMETRIC)" + " "*54 + "|")
         report_lines.append("|" + "="*98 + "|")
+        report_lines.append("")
         
+        # Check if asymmetric is enabled
+        use_asymmetric = trade_cfg.get('use_asymmetric_rewards', True)
+        constant_loss = trade_cfg.get('constant_loss_reward', -1.0)
+        
+
+        report_lines.append("  |  ASYMMETRIC REWARD SYSTEM v3.0                                             |")
+        report_lines.append("  |                                                                             |")
+        report_lines.append("  |  KEY INSIGHT: Stop-loss caps financial loss mechanically                   |")
+        report_lines.append("  |  No need to ALSO punish with scaled negative reward (creates fear)         |")
+        report_lines.append("  |                                                                             |")
+        report_lines.append("  |  WINS:   Scaled (+1% = +1.0, +3% = +3.0) -> Agent seeks bigger wins         |")
+        report_lines.append(f"  |  LOSSES: Constant ({constant_loss}) regardless of size -> Bounded downside          |")
         report_lines.append("")
-        report_lines.append("  GOOD REWARDS (Positive):")
-        report_lines.append("    +P&L% x 100          When trade is profitable")
-        report_lines.append("    +0.5                 When take-profit is hit")
-        report_lines.append("    +0.2                 When agent exits profitably (after costs)")
-        report_lines.append(f"    +0.01 per step       When holding >= {trade_config.get('min_hold_for_bonus', 36)} steps (max 2.0)")
+        
+        report_lines.append(f"  Asymmetric Rewards: {'ENABLED ' if use_asymmetric else 'DISABLED'}")
+        report_lines.append(f"  Constant Loss Reward: {constant_loss}")
         report_lines.append("")
-        report_lines.append("  BAD REWARDS (Negative):")
-        report_lines.append("    -P&L% x 100          When trade loses money")
-        report_lines.append("    -2.0                 When search times out (no entry in 200 steps)")
-        report_lines.append("    -1.0                 Extra penalty when hold times out (300 steps)")
-        report_lines.append("    x1.0-1.5             Early exit on losing trade (amplified loss)")
+        
+        report_lines.append("  WIN REWARDS (Scaled):")
+        report_lines.append("    Base:                +P&L(%) x 100 (e.g., +2% profit = +2.0 reward)")
+        report_lines.append(f"    Take-profit bonus:   +{trade_cfg.get('take_profit_bonus', 2.0)} for hitting TP")
+        report_lines.append(f"    Hold bonus:          +{trade_cfg.get('hold_duration_bonus', 0.08)} per step after {trade_cfg.get('min_hold_for_bonus', 6)} steps (max {trade_cfg.get('max_hold_bonus', 3.0)})")
+        report_lines.append(f"    Early exit mult:     {trade_cfg.get('early_winner_multiplier_min', 0.05):.0%}-100% of reward (encourages holding)")
         report_lines.append("")
-        report_lines.append("  REDUCED REWARDS:")
-        report_lines.append("    x0.3-1.0             Early exit on winning trade (reduced profit)")
+        
+        report_lines.append("  LOSS REWARDS (Constant):")
+        report_lines.append(f"    ALL losses:          {constant_loss} (regardless of -0.5% or -3%)")
+        report_lines.append("    No scaling:          Agent doesn't fear holding losing positions")
+        report_lines.append("    Stop-loss:           Still protects capital mechanically")
+        report_lines.append("")
+        
+        report_lines.append("  PENALTIES:")
+        report_lines.append(f"    No trade (timeout):  {trade_cfg.get('no_trade_penalty', -2.0)}")
+        report_lines.append(f"    Hold timeout:        {trade_cfg.get('timeout_exit_penalty', -1.0)}")
+        report_lines.append(f"    Early exit:          {trade_cfg.get('early_exit_penalty_max', -1.0)} to 0 (before {trade_cfg.get('min_hold_before_penalty', 12)} steps)")
+        report_lines.append("")
+        
+        report_lines.append("  WHY THIS WORKS:")
+        report_lines.append("    Before: Agent feared losses (-3% = -3.0 reward) -> exited early")
+        report_lines.append("    Now:    All losses = -1.0 -> agent holds without fear")
+        report_lines.append("    Result: Agent seeks bigger wins since downside is bounded")
         report_lines.append("")
         
         report_lines.append("="*100)
         report_lines.append("END OF COMPREHENSIVE DIAGNOSTIC REPORT")
         report_lines.append("="*100)
         
+        # Save report
+        self._save_report(report_lines)
+    
+    def _save_report(self, report_lines: list):
+        """Save report to console and file"""
         # Log to console
         for line in report_lines:
             logger.info(line)
@@ -1406,7 +1526,7 @@ class TradeBasedTrainer:
         with open(report_path, 'w') as f:
             f.write('\n'.join(report_lines))
         
-        logger.info(f"\n  Comprehensive report saved to: {report_path}")
+        logger.info(f"\n  📊 Report saved to: {report_path}")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # HELPER METHODS (Same as OptimizedSystemTrainer)

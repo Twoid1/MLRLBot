@@ -81,23 +81,69 @@ class Positions(IntEnum):
 
 @dataclass
 class TradeConfig:
-    """Configuration for trade-based episodes"""
+    """
+    Configuration for trade-based episodes
+    
+    REWARD STRUCTURE OPTIMIZED FOR:
+    - Holding winners longer (avg win target: +1.5%)
+    - Cutting losers quickly
+    - Achieving take-profit targets
+    - Discouraging quick exits
+    """
     # Timeouts
     max_wait_steps: int = 200       # Max steps to find entry (200 × 5m = ~17 hours)
     max_hold_steps: int = 300       # Max steps to hold trade (300 × 5m = 25 hours)
     
-    # Penalties
-    no_trade_penalty: float = -2.0   # Penalty for timeout without trading
-    timeout_exit_penalty: float = -1.0  # Extra penalty for forced exit
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PENALTIES
+    # ═══════════════════════════════════════════════════════════════════════════
+    no_trade_penalty: float = -2.0       # Penalty for timeout without trading
+    timeout_exit_penalty: float = -1.0   # Extra penalty for forced exit
     
-    # Bonuses
-    patience_bonus: float = 0.5      # Bonus for waiting for good setup
-    hold_duration_bonus: float = 0.01  # Per-step bonus for holding (encourages patience)
+    # NEW: Early exit penalty (exits before min_hold_before_penalty)
+    min_hold_before_penalty: int = 12    # 12 × 5m = 1 hour minimum
+    early_exit_penalty_max: float = -1.0 # Max penalty for immediate exit (scales to 0)
     
-    # Minimum requirements
-    min_hold_for_bonus: int = 36     # 36 × 5m = 3 hours minimum for hold bonus
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BONUSES - RETUNED FOR PATIENCE
+    # ═══════════════════════════════════════════════════════════════════════════
+    patience_bonus: float = 0.5          # Bonus for waiting for good setup
     
-    # Trading costs (for reward awareness)
+    # Hold duration bonus - NOW MUCH STRONGER AND STARTS EARLIER
+    hold_duration_bonus: float = 0.08    # 8x stronger! Per-step bonus for holding
+    min_hold_for_bonus: int = 6          # Start bonus after just 30 min (was 36!)
+    max_hold_bonus: float = 3.0          # Cap total hold bonus at 3.0
+    
+    # Take-profit bonus - MUCH STRONGER to incentivize letting winners run
+    take_profit_bonus: float = 2.0       # Was 0.5, now 4x bigger!
+    
+    # Agent exit bonus - REMOVED (was encouraging quick exits)
+    agent_profitable_exit_bonus: float = 0.0  # Was 0.2, now 0!
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # ASYMMETRIC REWARD SYSTEM v3.0
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Key insight: Stop-loss already caps financial loss mechanically
+    # No need to ALSO punish with scaled negative reward (creates fear)
+    # 
+    # WINS: Scaled (bigger wins = bigger rewards) - encourages holding
+    # LOSSES: Constant (bounded downside) - removes fear of holding
+    use_asymmetric_rewards: bool = True       # Enable asymmetric system
+    constant_loss_reward: float = -1.0        # All losses = this value (regardless of size)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # EARLY EXIT MULTIPLIERS - MUCH HARSHER
+    # ═══════════════════════════════════════════════════════════════════════════
+    # When exiting before min_hold_for_bonus:
+    early_winner_multiplier_min: float = 0.05  # Was 0.3! Now only get 5% of reward
+    early_winner_multiplier_max: float = 1.0   # Full reward at min_hold_for_bonus
+    
+    early_loser_multiplier_min: float = 1.0    # No reduction for quick loss exits
+    early_loser_multiplier_max: float = 1.5    # Amplify loss for slow losing exits
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # TRADING COSTS
+    # ═══════════════════════════════════════════════════════════════════════════
     fee_rate: float = 0.001          # 0.1% per trade
     slippage: float = 0.0005         # 0.05% slippage
     
@@ -783,59 +829,99 @@ class TradeBasedMultiTimeframeEnv:
         """
         Calculate reward for completed trade
         
-        This is where the magic happens - reward structure that encourages:
-        1. Profitable trades (obviously)
-        2. Holding for appropriate duration
-        3. Letting winners run (take-profit is good)
-        4. Cutting losers (stop-loss is acceptable)
+        ASYMMETRIC REWARD STRUCTURE v3.0
+        ═══════════════════════════════════════════════════════════════════════════
+        
+        KEY INSIGHT:
+        Stop-loss ALREADY caps financial loss mechanically (e.g., -3%)
+        No need to ALSO punish with huge negative reward (creates fear)
+        
+        THE ASYMMETRY:
+        ┌─────────────────────────────────────────────────────────────────────────┐
+        │  WINS:   Scaled rewards (+1% = +1.0, +3% = +3.0)                        │
+        │          → Bigger wins = bigger rewards = agent seeks big wins          │
+        │                                                                         │
+        │  LOSSES: Constant reward (-1.0 regardless of loss size)                 │
+        │          → -0.5% loss = -1.0, -3% loss = -1.0 (same!)                   │
+        │          → Agent doesn't fear holding, downside is bounded              │
+        └─────────────────────────────────────────────────────────────────────────┘
+        
+        RESULT: Agent holds longer for bigger wins since losses are bounded.
+        ═══════════════════════════════════════════════════════════════════════════
         """
         config = self.trade_config
         
-        # Base reward: scaled P&L percentage
-        base_reward = pnl_pct * config.reward_scale
+        # ═══════════════════════════════════════════════════════════════════════
+        # STEP 1: Calculate base reward (ASYMMETRIC)
+        # ═══════════════════════════════════════════════════════════════════════
+        
+        if config.use_asymmetric_rewards:
+            # ASYMMETRIC SYSTEM v3.0
+            if pnl_pct > 0:
+                # WINS: Scaled - bigger wins = bigger rewards
+                base_reward = pnl_pct * config.reward_scale
+            else:
+                # LOSSES: Constant - bounded downside removes fear
+                base_reward = config.constant_loss_reward  # Default: -1.0
+        else:
+            # SYMMETRIC SYSTEM (old behavior - for comparison)
+            base_reward = pnl_pct * config.reward_scale
         
         # ═══════════════════════════════════════════════════════════════
-        # Duration-based adjustments
+        # STEP 2: Early exit penalty (before min_hold_before_penalty)
+        # ═══════════════════════════════════════════════════════════════
+        # Still want to discourage immediate exits after entry
+        
+        if hold_duration < config.min_hold_before_penalty:
+            # Penalty scales from early_exit_penalty_max (immediate) to 0 (at threshold)
+            early_ratio = hold_duration / config.min_hold_before_penalty
+            early_penalty = config.early_exit_penalty_max * (1 - early_ratio)
+            base_reward += early_penalty  # early_penalty is negative
+        
+        # ═══════════════════════════════════════════════════════════════
+        # STEP 3: Hold duration bonus (only for wins)
         # ═══════════════════════════════════════════════════════════════
         
         if hold_duration >= config.min_hold_for_bonus:
-            # Held long enough - add hold bonus
-            extra_steps = hold_duration - config.min_hold_for_bonus
-            hold_bonus = min(extra_steps * config.hold_duration_bonus, 2.0)  # Cap at 2.0
-            base_reward += hold_bonus
+            # Held long enough - add hold bonus (only for wins!)
+            if pnl_pct > 0:
+                extra_steps = hold_duration - config.min_hold_for_bonus
+                hold_bonus = min(extra_steps * config.hold_duration_bonus, config.max_hold_bonus)
+                base_reward += hold_bonus
         else:
-            # Exited too early
+            # Early exit - apply multipliers (only for wins)
             duration_ratio = hold_duration / config.min_hold_for_bonus
             
             if pnl_pct > 0:
-                # Profitable but short: reduce reward
-                base_reward *= (0.3 + 0.7 * duration_ratio)  # 30-100% of reward
-            else:
-                # Loss AND short: extra penalty
-                base_reward *= (1.0 + 0.5 * (1 - duration_ratio))  # 100-150% of loss
+                # Profitable but short: reduce reward to encourage holding
+                multiplier = config.early_winner_multiplier_min + \
+                            (config.early_winner_multiplier_max - config.early_winner_multiplier_min) * duration_ratio
+                base_reward *= multiplier
+            # For losses with asymmetric system: no multiplier needed
+            # The constant loss reward already handles it
         
         # ═══════════════════════════════════════════════════════════════
-        # Exit reason adjustments
+        # STEP 4: Exit reason bonuses
         # ═══════════════════════════════════════════════════════════════
         
         if exit_reason == 'take_profit':
-            # Take-profit is good! Small bonus
-            base_reward += 0.5
+            # Take-profit is GREAT! Big bonus for letting winners run
+            base_reward += config.take_profit_bonus
             
         elif exit_reason == 'stop_loss':
-            # Stop-loss is acceptable risk management
-            # No additional penalty (the loss IS the penalty)
+            # Stop-loss triggered - risk management worked
+            # With asymmetric rewards, loss is already constant (-1.0)
             pass
             
         elif exit_reason == 'timeout':
-            # Forced exit - already has timeout_exit_penalty added in step()
+            # Forced exit - timeout penalty already applied in step()
             pass
             
         elif exit_reason == 'agent':
-            # Agent chose to exit - reward based on quality of decision
-            if pnl_pct > config.fee_rate * 2 + config.slippage * 2:
-                # Profitable after costs - good decision
-                base_reward += 0.2
+            # Agent chose to exit
+            if pnl_pct > 0 and pnl_pct > config.fee_rate * 2 + config.slippage * 2:
+                # Small bonus for profitable agent exits (default 0)
+                base_reward += config.agent_profitable_exit_bonus
         
         return base_reward
 
