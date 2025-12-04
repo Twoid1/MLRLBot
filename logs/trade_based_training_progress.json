@@ -1,65 +1,48 @@
 {
-  "start_time": "2025-12-02T18:06:27.949836",
+  "start_time": "2025-12-03T16:34:40.887977",
   "stages": {
     "Data Loading": {
-      "start_time": 1764727588.5385823,
+      "start_time": 1764808481.2809372,
       "total_items": 15,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1764727595.232008,
-      "total_time": 6.69342565536499,
+      "end_time": 1764808487.6248071,
+      "total_time": 6.343869924545288,
       "final_metrics": {
         "datasets_loaded": 15,
-        "time_seconds": 6.693422794342041
+        "time_seconds": 6.343868970870972
       }
     },
     "Feature Engineering": {
-      "start_time": 1764727595.2326076,
+      "start_time": 1764808487.625295,
       "total_items": 5,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1764727597.8368516,
-      "total_time": 2.6042439937591553,
+      "end_time": 1764808489.9713695,
+      "total_time": 2.3460745811462402,
       "final_metrics": {
         "feature_sets": 5,
-        "time_seconds": 2.6042423248291016
+        "time_seconds": 2.3460726737976074
       }
     },
     "Data Splitting": {
-      "start_time": 1764727597.83744,
+      "start_time": 1764808489.9719331,
       "total_items": 5,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1764727603.4843822,
-      "total_time": 5.646942138671875,
+      "end_time": 1764808493.2454185,
+      "total_time": 3.2734854221343994,
       "final_metrics": {
-        "time_seconds": 5.646516561508179
+        "time_seconds": 3.2733564376831055
       }
     },
-    "Trade-Based RL Training": {
-      "start_time": 1764727603.9032252,
-      "total_items": 8000,
+    "Trade-Based RL Training (Multi-Objective)": {
+      "start_time": 1764808493.672308,
+      "total_items": 15000,
       "completed_items": 0,
-      "status": "completed",
-      "end_time": 1764728824.4799426,
-      "total_time": 1220.576717376709,
-      "final_metrics": {
-        "time_seconds": 1220.5767395496368,
-        "episodes": 8000
-      }
-    },
-    "Saving Models": {
-      "start_time": 1764728824.4807973,
-      "total_items": 2,
-      "completed_items": 0,
-      "status": "completed",
-      "end_time": 1764728824.7498658,
-      "total_time": 0.26906847953796387,
-      "final_metrics": {
-        "time_seconds": 0.26906871795654297
-      }
+      "status": "running"
     }
   },
-  "current_stage": "Saving Models",
+  "current_stage": "Trade-Based RL Training (Multi-Objective)",
   "overall_progress": 0.0
 }

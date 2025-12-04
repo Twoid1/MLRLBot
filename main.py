@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Kraken Trading Bot - Main Entry Point (OPTIMIZED + TRADE-BASED)
+Kraken Trading Bot - Main Entry Point (OPTIMIZED + TRADE-BASED + MULTI-OBJECTIVE)
 
 Added:
 - Fast training with GPU support
 - Real-time progress monitoring
 - Automatic optimization
 - Performance benchmarking
-- ⭐ NEW: Trade-based training (1 episode = 1 trade)
+- ⭐ Trade-based training (1 episode = 1 trade)
+- ⭐ Multi-objective rewards (5 separate learning signals)
 """
 
 import argparse
@@ -32,10 +33,15 @@ def handle_train_command_trade_based(args):
     """
     Handle TRADE-BASED training commands
     
-    ⭐ NEW: Each episode = 1 complete trade
+    ⭐ Each episode = 1 complete trade
+    ⭐ Optional: Multi-objective rewards (5 separate signals)
+    
     Agent learns trade QUALITY, not step-by-step prediction
     """
     from src.trade_based_trainer import TradeBasedTrainer, train_trade_based, train_trade_based_rl_only
+    
+    # Check if multi-objective mode requested
+    use_mo = hasattr(args, 'multi_objective') and args.multi_objective
     
     logger.info("="*80)
     logger.info("TRADE-BASED TRAINING SYSTEM")
@@ -43,6 +49,17 @@ def handle_train_command_trade_based(args):
     logger.info("  Each episode = 1 complete trade")
     logger.info("  Agent learns: WHEN to enter, WHEN to exit")
     logger.info("  Focus: Trade QUALITY over QUANTITY")
+    
+    if use_mo:
+        logger.info("")
+        logger.info("   MULTI-OBJECTIVE MODE ENABLED ")
+        logger.info("  5 Separate Reward Signals:")
+        logger.info("    1. pnl_quality   - Maximize wins, minimize losses")
+        logger.info("    2. hold_duration - Hold trades longer")
+        logger.info("    3. win_achieved  - Win more trades")
+        logger.info("    4. loss_control  - Cut losers early")
+        logger.info("    5. risk_reward   - Good risk/reward ratios")
+    
     logger.info("="*80)
     
     # Build custom config if needed
@@ -85,6 +102,25 @@ def handle_train_command_trade_based(args):
             else:
                 trainer.config[key] = value
         
+        # ═══════════════════════════════════════════════════════════════════════
+        # ENABLE MULTI-OBJECTIVE MODE IF REQUESTED
+        # ═══════════════════════════════════════════════════════════════════════
+        if use_mo:
+            trainer.config['use_multi_objective'] = True
+            logger.info("\n Multi-objective rewards ENABLED")
+            
+            # Apply MO-specific config overrides if provided
+            if hasattr(args, 'weight_pnl') and args.weight_pnl is not None:
+                trainer.config['mo_reward_config']['weight_pnl_quality'] = args.weight_pnl
+            if hasattr(args, 'weight_hold') and args.weight_hold is not None:
+                trainer.config['mo_reward_config']['weight_hold_duration'] = args.weight_hold
+            if hasattr(args, 'weight_win') and args.weight_win is not None:
+                trainer.config['mo_reward_config']['weight_win_achieved'] = args.weight_win
+            if hasattr(args, 'weight_loss') and args.weight_loss is not None:
+                trainer.config['mo_reward_config']['weight_loss_control'] = args.weight_loss
+            if hasattr(args, 'weight_rr') and args.weight_rr is not None:
+                trainer.config['mo_reward_config']['weight_risk_reward'] = args.weight_rr
+        
         # Determine what to train
         if args.ml:
             logger.info("\n>>> Training ML Predictor Only <<<\n")
@@ -92,15 +128,17 @@ def handle_train_command_trade_based(args):
             logger.info(" ML training complete")
             
         elif args.rl:
-            logger.info("\n>>> Trade-Based RL Training Only <<<\n")
+            mode_str = "Multi-Objective " if use_mo else ""
+            logger.info(f"\n>>> {mode_str}Trade-Based RL Training Only <<<\n")
             logger.info("  Will load existing ML model for feature selection")
             results = trainer.train_complete_system(train_ml=False, train_rl=True)
-            logger.info(" Trade-based RL training complete")
+            logger.info(f" {mode_str}Trade-based RL training complete")
             
         elif args.both:
-            logger.info("\n>>> Training Both ML and Trade-Based RL <<<\n")
+            mode_str = "Multi-Objective " if use_mo else ""
+            logger.info(f"\n>>> Training Both ML and {mode_str}Trade-Based RL <<<\n")
             results = trainer.train_complete_system(train_ml=True, train_rl=True)
-            logger.info(" Complete trade-based system training finished")
+            logger.info(f" Complete {mode_str.lower()}trade-based system training finished")
             
         else:
             logger.error("Please specify --ml, --rl, or --both")
@@ -109,12 +147,22 @@ def handle_train_command_trade_based(args):
         # Print success message
         print("\n" + "="*80)
         print(" TRADE-BASED TRAINING COMPLETED SUCCESSFULLY")
+        if use_mo:
+            print(" (Multi-Objective Mode)")
         print("="*80)
         
         print("\nWhat the agent learned:")
         print("  - WHEN to enter trades (good setups)")
         print("  - WHEN to exit trades (optimal timing)")
         print("  - Trade QUALITY over quantity")
+        
+        if use_mo:
+            print("\nMulti-objective signals used:")
+            print("  - pnl_quality:   Maximize wins, minimize losses")
+            print("  - hold_duration: Hold trades longer")
+            print("  - win_achieved:  Win more trades")
+            print("  - loss_control:  Cut losers early")
+            print("  - risk_reward:   Good risk/reward ratios")
         
         print("\nNext steps:")
         print("  1. Run backtesting: python main.py backtest --walk-forward")
@@ -625,14 +673,22 @@ def main():
     """Main entry point for the trading bot."""
     
     parser = argparse.ArgumentParser(
-        description='Kraken Trading Bot - Hybrid ML/RL System (OPTIMIZED + TRADE-BASED)',
+        description='Kraken Trading Bot - Hybrid ML/RL System (OPTIMIZED + TRADE-BASED + MULTI-OBJECTIVE)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # ⭐ TRADE-BASED TRAINING (NEW - learns trade quality!)
+  # ⭐ TRADE-BASED TRAINING (learns trade quality!)
   python main.py train --both --trade-based          # Train with trade-based episodes
   python main.py train --rl --trade-based            # RL only, trade-based
   python main.py train --both --trade-based --episodes 10000  # More episodes
+  
+  # ⭐ MULTI-OBJECTIVE TRAINING (5 reward signals!)
+  python main.py train --rl --trade-based --multi-objective   # Best of both!
+  python main.py train --both --trade-based -mo               # Short flag
+  python main.py train --rl --trade-based -mo --episodes 15000
+  
+  # Multi-objective with custom weights
+  python main.py train --rl --trade-based -mo --weight-pnl 0.4 --weight-hold 0.3
   
   # OPTIMIZED TIME-BASED TRAINING (10-20x faster)
   python main.py train --both --fast --monitor       # Train with real-time monitoring
@@ -668,6 +724,10 @@ TRAINING MODES COMPARISON:
   --trade-based : Each episode = 1 trade. Agent learns WHEN to enter/exit.
                   Best for: Swing trading, trade quality over quantity.
                   
+  --trade-based --multi-objective (-mo) : Same as above + 5 separate reward signals.
+                  Best for: Learning multiple trading objectives simultaneously.
+                  Objectives: pnl_quality, hold_duration, win_achieved, loss_control, risk_reward
+                  
   --fast        : Time-based episodes (fixed steps). Agent predicts next candle.
                   Best for: Scalping, high-frequency decisions.
                   
@@ -682,7 +742,7 @@ TRAINING MODES COMPARISON:
     subparsers = parser.add_subparsers(dest='command', help='Command to execute')
     
     # ═══════════════════════════════════════════════════════════════════════════
-    # TRAIN COMMAND (with trade-based option)
+    # TRAIN COMMAND (with trade-based and multi-objective options)
     # ═══════════════════════════════════════════════════════════════════════════
     train_parser = subparsers.add_parser('train', help='Train models')
     
@@ -695,9 +755,17 @@ TRAINING MODES COMPARISON:
     # Training mode (mutually exclusive)
     mode_group = train_parser.add_mutually_exclusive_group()
     mode_group.add_argument('--trade-based', action='store_true',
-                           help='⭐ NEW: Trade-based training (1 episode = 1 trade)')
+                           help='⭐ Trade-based training (1 episode = 1 trade)')
     mode_group.add_argument('--fast', action='store_true', 
                            help='Time-based optimized training (10-20x faster, GPU support)')
+    
+    # Multi-objective option (works with --trade-based)
+    train_parser.add_argument('--multi-objective', '-mo', action='store_true',
+                            help='⭐ Use Multi-Objective rewards (5 signals) - requires --trade-based')
+    
+    # Episode count
+    train_parser.add_argument('--episodes', type=int, default=None,
+                            help='Number of training episodes (default: 15000 for trade-based)')
     
     # General options
     train_parser.add_argument('--monitor', action='store_true',
@@ -705,12 +773,22 @@ TRAINING MODES COMPARISON:
     train_parser.add_argument('--config', help='Path to config file')
     
     # Trade-based specific options
-    train_parser.add_argument('--episodes', type=int,
-                             help='Number of episodes (trade-based: trades, time-based: episodes)')
     train_parser.add_argument('--max-wait', type=int,
-                             help='[Trade-based] Max steps to wait for entry (default: 200)')
+                             help='[Trade-based] Max steps to wait for entry (default: 250)')
     train_parser.add_argument('--max-hold', type=int,
                              help='[Trade-based] Max steps to hold position (default: 300)')
+    
+    # Multi-objective weight options
+    train_parser.add_argument('--weight-pnl', type=float,
+                             help='[Multi-objective] Weight for pnl_quality (default: 0.35)')
+    train_parser.add_argument('--weight-hold', type=float,
+                             help='[Multi-objective] Weight for hold_duration (default: 0.25)')
+    train_parser.add_argument('--weight-win', type=float,
+                             help='[Multi-objective] Weight for win_achieved (default: 0.15)')
+    train_parser.add_argument('--weight-loss', type=float,
+                             help='[Multi-objective] Weight for loss_control (default: 0.15)')
+    train_parser.add_argument('--weight-rr', type=float,
+                             help='[Multi-objective] Weight for risk_reward (default: 0.10)')
     
     # Explainability options
     train_parser.add_argument('--explain', action='store_true', 
@@ -810,6 +888,15 @@ TRAINING MODES COMPARISON:
     live_parser.add_argument('--dry-run', action='store_true', help='Simulate without real orders')
     
     # ═══════════════════════════════════════════════════════════════════════════
+    # PAPER COMMAND
+    # ═══════════════════════════════════════════════════════════════════════════
+    paper_parser = subparsers.add_parser('paper', help='Paper trading')
+    paper_group = paper_parser.add_mutually_exclusive_group(required=True)
+    paper_group.add_argument('--start', action='store_true', help='Start paper trading')
+    paper_group.add_argument('--stop', action='store_true', help='Stop paper trading')
+    paper_group.add_argument('--status', action='store_true', help='Check status')
+    
+    # ═══════════════════════════════════════════════════════════════════════════
     # DASHBOARD COMMAND
     # ═══════════════════════════════════════════════════════════════════════════
     dashboard_parser = subparsers.add_parser('dashboard', help='Launch dashboard')
@@ -834,14 +921,25 @@ TRAINING MODES COMPARISON:
     
     logger = setup_logger('main', level=log_level)
     
-    # Handle commands
+    # ═══════════════════════════════════════════════════════════════════════════
+    # HANDLE COMMANDS
+    # ═══════════════════════════════════════════════════════════════════════════
     if args.command == 'train':
+        # Check for multi-objective without trade-based
+        if hasattr(args, 'multi_objective') and args.multi_objective:
+            if not (hasattr(args, 'trade_based') and args.trade_based):
+                logger.warning("--multi-objective requires --trade-based flag")
+                logger.info("Adding --trade-based automatically...")
+                args.trade_based = True
+        
+        # Route to appropriate handler
         if hasattr(args, 'trade_based') and args.trade_based:
             handle_train_command_trade_based(args)
         elif hasattr(args, 'fast') and args.fast:
             handle_train_command_optimized(args)
         else:
             handle_train_command_standard(args)
+            
     elif args.command == 'monitor':
         handle_monitor_command(args)
     elif args.command == 'optimize':
@@ -854,6 +952,8 @@ TRAINING MODES COMPARISON:
         handle_backtest_command(args)
     elif args.command == 'live':
         handle_live_command(args)
+    elif args.command == 'paper':
+        handle_paper_command(args)
     elif args.command == 'dashboard':
         handle_dashboard_command(args)
     else:
