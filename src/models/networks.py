@@ -17,7 +17,7 @@ class DQNetwork(nn.Module):
     Standard Deep Q-Network architecture
     
     Architecture:
-        Input (state_dim) → FC(256) → ReLU → FC(256) → ReLU → FC(128) → ReLU → Output (action_dim)
+        Input (state_dim) â†’ FC(256) â†’ ReLU â†’ FC(256) â†’ ReLU â†’ FC(128) â†’ ReLU â†’ Output (action_dim)
     
     Designed for trading with:
     - State: market features + ML predictions + position info
@@ -536,6 +536,116 @@ class RainbowDQN(nn.Module):
                 layer.reset_noise()
         self.value_stream.reset_noise()
         self.advantage_stream.reset_noise()
+
+
+class DuelingHead(nn.Module):
+    """Single dueling head for multi-objective DQN"""
+    
+    def __init__(self, input_dim: int, action_dim: int, hidden_dim: int = 32):
+        super().__init__()
+        self.value_stream = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
+        self.advantage_stream = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim)
+        )
+        self.action_dim = action_dim
+    
+    def forward(self, x):
+        value = self.value_stream(x)
+        advantage = self.advantage_stream(x)
+        # Dueling combination: Q = V + (A - mean(A))
+        q_values = value + advantage - advantage.mean(dim=-1, keepdim=True)
+        return q_values
+
+
+class MultiHeadDQNetwork(nn.Module):
+    """
+    Multi-Objective DQN with separate heads for each objective.
+    
+    Architecture matches training checkpoint format:
+    - shared: Backbone layers (Linear -> ReLU -> LayerNorm -> Linear -> ReLU -> LayerNorm)
+    - heads: 5 separate DuelingHead modules (one per objective)
+    
+    Used for multi-objective RL where different objectives are weighted.
+    """
+    
+    def __init__(self, 
+                 state_dim: int,
+                 action_dim: int,
+                 hidden_dims: List[int] = [128, 64],
+                 num_heads: int = 5,
+                 head_hidden_dim: int = 32):
+        super().__init__()
+        
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.num_heads = num_heads
+        
+        # Shared backbone: Linear -> ReLU -> LayerNorm -> Linear -> ReLU -> LayerNorm
+        # Indices: 0=Linear, 1=ReLU, 2=LayerNorm, 3=Linear, 4=ReLU, 5=LayerNorm
+        self.shared = nn.Sequential(
+            nn.Linear(state_dim, hidden_dims[0]),
+            nn.ReLU(),
+            nn.LayerNorm(hidden_dims[0]),
+            nn.Linear(hidden_dims[0], hidden_dims[1]) if len(hidden_dims) > 1 else nn.Identity(),
+            nn.ReLU(),
+            nn.LayerNorm(hidden_dims[1] if len(hidden_dims) > 1 else hidden_dims[0])
+        )
+        
+        final_hidden = hidden_dims[-1] if len(hidden_dims) > 1 else hidden_dims[0]
+        
+        # Multiple heads (one per objective)
+        self.heads = nn.ModuleList([
+            DuelingHead(final_hidden, action_dim, head_hidden_dim)
+            for _ in range(num_heads)
+        ])
+        
+        # Objective weights (can be adjusted during inference)
+        self.objective_weights = nn.Parameter(
+            torch.ones(num_heads) / num_heads, 
+            requires_grad=False
+        )
+        
+    def forward(self, state: torch.Tensor, return_all_heads: bool = False):
+        """
+        Forward pass.
+        
+        Args:
+            state: Input state [batch, state_dim]
+            return_all_heads: If True, return Q-values for all heads
+            
+        Returns:
+            Combined Q-values [batch, action_dim] or dict of Q-values per head
+        """
+        # Shared processing
+        shared_features = self.shared(state)
+        
+        # Get Q-values from each head
+        head_q_values = []
+        for head in self.heads:
+            q = head(shared_features)
+            head_q_values.append(q)
+        
+        if return_all_heads:
+            return {f'head_{i}': q for i, q in enumerate(head_q_values)}
+        
+        # Combine heads using weights
+        combined_q = torch.zeros_like(head_q_values[0])
+        for i, q in enumerate(head_q_values):
+            combined_q += self.objective_weights[i] * q
+        
+        return combined_q
+    
+    def set_objective_weights(self, weights: List[float]):
+        """Set objective weights for combining heads"""
+        assert len(weights) == self.num_heads
+        with torch.no_grad():
+            self.objective_weights.copy_(torch.tensor(weights, dtype=torch.float32))
 
 
 class NetworkFactory:

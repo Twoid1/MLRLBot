@@ -327,15 +327,15 @@ class TradeBasedTrainer:
             # ═══════════════════════════════════════════════════════════════════════
             # MULTI-OBJECTIVE RL SETTINGS (v4.0)
             # ═══════════════════════════════════════════════════════════════════════
-            'use_multi_objective': True,  # Set True to enable MO rewards
+            'use_multi_objective': False,  # Set True to enable MO rewards
             
             'mo_reward_config': {
                 # Objective weights (should sum to 1.0)
                 'weight_pnl_quality': 0.40,    # Maximize wins, minimize losses
-                'weight_hold_duration': 0.00,   # Hold trades longer
-                'weight_win_achieved': 0.20,    # Win more trades
-                'weight_loss_control': 0.15,    # Cut losers early
-                'weight_risk_reward': 0.25,     # Good risk/reward ratios
+                'weight_hold_duration': 0.05,   # Hold trades longer
+                'weight_win_achieved': 0.15,    # Win more trades
+                'weight_loss_control': 0.20,    # Cut losers early
+                'weight_risk_reward': 0.20,     # Good risk/reward ratios
                 
                 # Settings
                 'min_hold_for_bonus': 12,       # 1 hour minimum
@@ -978,27 +978,35 @@ class TradeBasedTrainer:
             # ═══════════════════════════════════════════════════════════════
             bootstrap_done = done and not truncated
             
-            if self.use_multi_objective and done and env.trade_result is not None:
-                # Calculate multi-objective rewards from trade result
-                mo_rewards = self.mo_reward_calculator.calculate(
-                    pnl_pct=env.trade_result.pnl_pct,
-                    hold_duration=env.trade_result.hold_duration,
-                    exit_reason=env.trade_result.exit_reason,
-                    max_favorable_excursion=max_favorable_excursion,
-                    max_adverse_excursion=max_adverse_excursion
-                )
-                
-                # Store with MO rewards
-                self.rl_agent.remember(state, action, reward, next_state, bootstrap_done, mo_rewards=mo_rewards)
-                
-                # Track for logging
-                for obj in OBJECTIVES:
-                    episode_mo_rewards[obj] = mo_rewards.get(obj, 0.0)
-                    if obj in self.objective_rewards_history:
-                        self.objective_rewards_history[obj].append(mo_rewards.get(obj, 0.0))
+            if self.use_multi_objective:
+                if done and env.trade_result is not None:
+                    # TERMINAL STEP: Calculate proper multi-objective rewards from trade result
+                    mo_rewards = self.mo_reward_calculator.calculate(
+                        pnl_pct=env.trade_result.pnl_pct,
+                        hold_duration=env.trade_result.hold_duration,
+                        exit_reason=env.trade_result.exit_reason,
+                        max_favorable_excursion=max_favorable_excursion,
+                        max_adverse_excursion=max_adverse_excursion
+                    )
+                    
+                    # Store with MO rewards
+                    self.rl_agent.remember(state, action, reward, next_state, bootstrap_done, mo_rewards=mo_rewards)
+                    
+                    # Track for logging
+                    for obj in OBJECTIVES:
+                        episode_mo_rewards[obj] = mo_rewards.get(obj, 0.0)
+                        if obj in self.objective_rewards_history:
+                            self.objective_rewards_history[obj].append(mo_rewards.get(obj, 0.0))
+                else:
+                    # INTERMEDIATE STEPS: Use zero rewards for MO objectives
+                    # This prevents the "same reward for all objectives" pollution
+                    # The agent learns that intermediate steps are neutral,
+                    # only the terminal outcome matters for each objective
+                    zero_mo_rewards = {obj: 0.0 for obj in OBJECTIVES}
+                    self.rl_agent.remember(state, action, reward, next_state, bootstrap_done, mo_rewards=zero_mo_rewards)
                         
             else:
-                # Standard single reward
+                # Standard single reward (non-MO mode)
                 self.rl_agent.remember(state, action, reward, next_state, bootstrap_done)
             
             # Increment step count
@@ -1484,7 +1492,7 @@ class TradeBasedTrainer:
         with open(report_path, 'w') as f:
             f.write('\n'.join(report_lines))
         
-        logger.info(f"\n   Report saved to: {report_path}")
+        logger.info(f"\n  📊 Report saved to: {report_path}")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # HELPER METHODS (Same as OptimizedSystemTrainer)

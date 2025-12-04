@@ -1,43 +1,43 @@
 {
-  "start_time": "2025-12-03T16:34:40.887977",
+  "start_time": "2025-12-04T13:25:09.218927",
   "stages": {
     "Data Loading": {
-      "start_time": 1764808481.2809372,
+      "start_time": 1764883510.178845,
       "total_items": 15,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1764808487.6248071,
-      "total_time": 6.343869924545288,
+      "end_time": 1764883517.4503767,
+      "total_time": 7.271531820297241,
       "final_metrics": {
         "datasets_loaded": 15,
-        "time_seconds": 6.343868970870972
+        "time_seconds": 7.271529674530029
       }
     },
     "Feature Engineering": {
-      "start_time": 1764808487.625295,
+      "start_time": 1764883517.4509559,
       "total_items": 5,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1764808489.9713695,
-      "total_time": 2.3460745811462402,
+      "end_time": 1764883520.3926616,
+      "total_time": 2.9417057037353516,
       "final_metrics": {
         "feature_sets": 5,
-        "time_seconds": 2.3460726737976074
+        "time_seconds": 2.9417059421539307
       }
     },
     "Data Splitting": {
-      "start_time": 1764808489.9719331,
+      "start_time": 1764883520.3932643,
       "total_items": 5,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1764808493.2454185,
-      "total_time": 3.2734854221343994,
+      "end_time": 1764883531.7139626,
+      "total_time": 11.320698261260986,
       "final_metrics": {
-        "time_seconds": 3.2733564376831055
+        "time_seconds": 11.320254564285278
       }
     },
     "Trade-Based RL Training (Multi-Objective)": {
-      "start_time": 1764808493.672308,
+      "start_time": 1764883532.230576,
       "total_items": 15000,
       "completed_items": 0,
       "status": "running"

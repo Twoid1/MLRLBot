@@ -42,11 +42,11 @@ class MORewardConfig:
     """Configuration for multi-objective rewards"""
     
     # Objective weights (must sum to 1.0 for proper scaling)
-    weight_pnl_quality: float = 0.35
-    weight_hold_duration: float = 0.25
+    weight_pnl_quality: float = 0.40
+    weight_hold_duration: float = 0.05
     weight_win_achieved: float = 0.15
-    weight_loss_control: float = 0.15
-    weight_risk_reward: float = 0.10
+    weight_loss_control: float = 0.20
+    weight_risk_reward: float = 0.20
     
     # Trading parameters
     stop_loss_pct: float = 0.03
@@ -504,11 +504,11 @@ class MODQNConfig:
     
     # Objective weights
     objective_weights: Dict[str, float] = field(default_factory=lambda: {
-        'pnl_quality': 0.35,
-        'hold_duration': 0.25,
+        'pnl_quality': 0.40,
+        'hold_duration': 0.05,
         'win_achieved': 0.15,
-        'loss_control': 0.15,
-        'risk_reward': 0.10,
+        'loss_control': 0.20,
+        'risk_reward': 0.20,
     })
 
 

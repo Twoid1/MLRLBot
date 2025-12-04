@@ -48,11 +48,11 @@ class MultiObjectiveConfig:
     # These determine the IMPORTANCE of each objective when choosing actions
     # Higher weight = more influence on decisions
     
-    weight_pnl_quality: float = 0.35      # P&L is important but not everything
-    weight_hold_duration: float = 0.25    # Holding matters a lot (our main issue!)
+    weight_pnl_quality: float = 0.40      # P&L is important but not everything
+    weight_hold_duration: float = 0.05   # Holding matters a lot (our main issue!)
     weight_win_achieved: float = 0.15     # Win rate matters somewhat
-    weight_loss_control: float = 0.15     # Cutting losers matters
-    weight_risk_reward: float = 0.10      # Risk management matters
+    weight_loss_control: float = 0.20     # Cutting losers matters
+    weight_risk_reward: float = 0.20      # Risk management matters
     
     # ═══════════════════════════════════════════════════════════════════════════
     # PNL_QUALITY PARAMETERS
