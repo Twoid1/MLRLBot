@@ -247,8 +247,8 @@ class TradeBasedTrainer:
             # ═══════════════════════════════════════════════════════════════════════
             'trade_config': {
                 # Timeouts
-                'max_wait_steps': 250,           # Max steps to find entry
-                'max_hold_steps': 300,           # Max steps to hold trade
+                'max_wait_steps': 300,           # Max steps to find entry
+                'max_hold_steps': 250,           # Max steps to hold trade
                 
                 # Penalties
                 'no_trade_penalty': -2.0,        # Penalty for not trading
@@ -309,7 +309,7 @@ class TradeBasedTrainer:
             'initial_balance': 10000,
             'fee_rate': 0.001,
             'slippage': 0.0005,
-            'stop_loss': 0.03,           # 3% stop loss
+            'stop_loss': 0.02,           # 3% stop loss
             'take_profit': 0.06,         # 3% take profit (was 6% - unreachable!)
             
             # Progress tracking
@@ -331,10 +331,10 @@ class TradeBasedTrainer:
             
             'mo_reward_config': {
                 # Objective weights (should sum to 1.0)
-                'weight_pnl_quality': 0.40,    # Maximize wins, minimize losses
-                'weight_hold_duration': 0.05,   # Hold trades longer
-                'weight_win_achieved': 0.15,    # Win more trades
-                'weight_loss_control': 0.20,    # Cut losers early
+                'weight_pnl_quality': 0.55,    # Maximize wins, minimize losses
+                'weight_hold_duration': 0.00,   # Hold trades longer
+                'weight_win_achieved': 0.25,    # Win more trades
+                'weight_loss_control': 0.00,    # Cut losers early
                 'weight_risk_reward': 0.20,     # Good risk/reward ratios
                 
                 # Settings
@@ -1104,6 +1104,7 @@ class TradeBasedTrainer:
         val_episodes = self.config.get('validation_episodes', 50)
         val_results = []
         trade_results = []
+        mo_rewards_list = []  # ← ADD THIS
         
         # Save epsilon and set to 0
         original_epsilon = self.rl_agent.epsilon
@@ -1124,6 +1125,10 @@ class TradeBasedTrainer:
             done = False
             steps = 0
             
+            # Track MFE/MAE for MO rewards
+            max_favorable_excursion = 0.0
+            max_adverse_excursion = 0.0
+            
             while not done and steps < 1000:
                 action = self.rl_agent.act(state, training=False)
                 next_state, reward, done, truncated, info = env.step(action)
@@ -1131,18 +1136,37 @@ class TradeBasedTrainer:
                 state = next_state
                 steps += 1
                 
+                # Track MFE/MAE
+                if hasattr(env, 'unrealized_pnl') and env.position != 0:
+                    pnl = env.unrealized_pnl / env.initial_balance if env.initial_balance > 0 else 0
+                    max_favorable_excursion = max(max_favorable_excursion, pnl)
+                    max_adverse_excursion = min(max_adverse_excursion, pnl)
+                
                 if done or truncated:
                     break
             
             val_results.append(episode_reward)
             
-            # Track trade results
+            # Track trade results AND calculate MO rewards
             if env.trade_result is not None:
                 trade_results.append({
                     'pnl_pct': env.trade_result.pnl_pct,
                     'hold_duration': env.trade_result.hold_duration,
                     'exit_reason': env.trade_result.exit_reason,
                 })
+                
+                # ═══════════════════════════════════════════════════════════════
+                # CALCULATE MO REWARDS FOR VALIDATION
+                # ═══════════════════════════════════════════════════════════════
+                if self.use_multi_objective and self.mo_reward_calculator:
+                    mo_rewards = self.mo_reward_calculator.calculate(
+                        pnl_pct=env.trade_result.pnl_pct,
+                        hold_duration=env.trade_result.hold_duration,
+                        exit_reason=env.trade_result.exit_reason,
+                        max_favorable_excursion=max_favorable_excursion,
+                        max_adverse_excursion=max_adverse_excursion
+                    )
+                    mo_rewards_list.append(mo_rewards)
         
         # Restore epsilon
         self.rl_agent.epsilon = original_epsilon
@@ -1162,24 +1186,62 @@ class TradeBasedTrainer:
             avg_pnl = 0
             avg_hold = 0
         
-        logger.info(f"  Validation Results (Episode {episode_num}):")
-        logger.info(f"    Avg Reward: {avg_reward:.2f} ± {std_reward:.2f}")
-        logger.info(f"    Win Rate: {win_rate:.1%}")
-        logger.info(f"    Avg P&L: {avg_pnl*100:.2f}%")
-        logger.info(f"    Avg Hold: {avg_hold:.0f} steps")
-        
-        return {
-            'avg_reward': avg_reward,
-            'std_reward': std_reward,
-            'win_rate': win_rate,
-            'avg_pnl': avg_pnl,
-            'avg_hold_duration': avg_hold,
-            'episode': episode_num
-        }
+        # ═══════════════════════════════════════════════════════════════════════
+        # CALCULATE MO WEIGHTED REWARD
+        # ═══════════════════════════════════════════════════════════════════════
+        if self.use_multi_objective and mo_rewards_list:
+            weights = self.rl_agent.config.objective_weights
+            weighted_totals = []
+            for mo_r in mo_rewards_list:
+                total = sum(mo_r.get(obj, 0) * weights.get(obj, 0) for obj in OBJECTIVES)
+                weighted_totals.append(total)
+            
+            avg_mo_reward = np.mean(weighted_totals)
+            std_mo_reward = np.std(weighted_totals)
+            
+            logger.info(f"  Validation Results (Episode {episode_num}):")
+            logger.info(f"    MO Weighted Reward: {avg_mo_reward:+.3f} ± {std_mo_reward:.3f}")  # ← REAL REWARD
+            logger.info(f"    Win Rate: {win_rate:.1%}")
+            logger.info(f"    Avg P&L: {avg_pnl*100:.2f}%")
+            logger.info(f"    Avg Hold: {avg_hold:.0f} steps")
+            
+            # Per-objective breakdown
+            logger.info(f"    PER-OBJECTIVE (validation):")
+            for obj in OBJECTIVES:
+                obj_rewards = [mo_r.get(obj, 0) for mo_r in mo_rewards_list]
+                avg_obj = np.mean(obj_rewards)
+                weight = weights.get(obj, 0)
+                contribution = avg_obj * weight
+                logger.info(f"      {obj:15s}: {avg_obj:+.3f} × {weight:.2f} = {contribution:+.4f}")
+            
+            # Return MO reward for early stopping comparison
+            return {
+                'avg_reward': avg_mo_reward,  # ← USE MO REWARD FOR EARLY STOPPING
+                'std_reward': std_mo_reward,
+                'win_rate': win_rate,
+                'avg_pnl': avg_pnl,
+                'avg_hold_duration': avg_hold,
+                'episode': episode_num
+            }
+        else:
+            # Fallback for non-MO mode
+            logger.info(f"  Validation Results (Episode {episode_num}):")
+            logger.info(f"    Avg Reward: {avg_reward:.2f} ± {std_reward:.2f}")
+            logger.info(f"    Win Rate: {win_rate:.1%}")
+            logger.info(f"    Avg P&L: {avg_pnl*100:.2f}%")
+            logger.info(f"    Avg Hold: {avg_hold:.0f} steps")
+            
+            return {
+                'avg_reward': avg_reward,
+                'std_reward': std_reward,
+                'win_rate': win_rate,
+                'avg_pnl': avg_pnl,
+                'avg_hold_duration': avg_hold,
+                'episode': episode_num
+            }
 
     def _log_trade_progress(self, recent_episodes: list, current: int, total: int):
         """Log trade-based training progress"""
-        avg_reward = np.mean([e['total_reward'] for e in recent_episodes])
         
         # Trade-specific stats
         trades_with_results = [e for e in recent_episodes if 'trade_pnl_pct' in e]
@@ -1200,7 +1262,30 @@ class TradeBasedTrainer:
             terminations[term] = terminations.get(term, 0) + 1
         
         logger.info(f"\n   Progress: Episode {current}/{total}")
-        logger.info(f"    Avg Reward: {avg_reward:.2f}")
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # FIXED: Show MO weighted reward instead of environment reward
+        # ═══════════════════════════════════════════════════════════════════════
+        if self.use_multi_objective and OBJECTIVES:
+            mo_episodes = [e for e in recent_episodes if e.get('mo_rewards')]
+            if mo_episodes:
+                weights = self.rl_agent.config.objective_weights
+                weighted_totals = []
+                for e in mo_episodes:
+                    mo_r = e['mo_rewards']
+                    total = sum(mo_r.get(obj, 0) * weights.get(obj, 0) for obj in OBJECTIVES)
+                    weighted_totals.append(total)
+                
+                avg_mo_reward = np.mean(weighted_totals)
+                logger.info(f"    MO Weighted Reward: {avg_mo_reward:+.3f}")  # ← THE REAL REWARD
+            else:
+                avg_mo_reward = 0
+                logger.info(f"    MO Weighted Reward: N/A (no MO data)")
+        else:
+            # Fallback to old environment reward for non-MO mode
+            avg_reward = np.mean([e['total_reward'] for e in recent_episodes])
+            logger.info(f"    Avg Reward: {avg_reward:.2f}")
+        
         logger.info(f"    Win Rate: {win_rate:.1%}")
         logger.info(f"    Avg P&L: {avg_pnl:.2f}%")
         logger.info(f"    Avg Hold: {avg_hold:.0f} steps")
@@ -1212,7 +1297,6 @@ class TradeBasedTrainer:
         # MULTI-OBJECTIVE SPECIFIC LOGGING
         # ═══════════════════════════════════════════════════════════════════════
         if self.use_multi_objective and OBJECTIVES:
-            # Get recent MO rewards
             mo_episodes = [e for e in recent_episodes if e.get('mo_rewards')]
             if mo_episodes:
                 logger.info(f"    PER-OBJECTIVE REWARDS (last {len(mo_episodes)} episodes):")
@@ -1221,7 +1305,8 @@ class TradeBasedTrainer:
                     if rewards:
                         avg_obj = np.mean(rewards)
                         weight = self.rl_agent.config.objective_weights.get(obj, 0)
-                        logger.info(f"      {obj:15s}: {avg_obj:+.3f} (weight: {weight:.2f})")
+                        contribution = avg_obj * weight
+                        logger.info(f"      {obj:15s}: {avg_obj:+.3f} × {weight:.2f} = {contribution:+.4f}")
             
             # Get loss stats from agent
             if hasattr(self.rl_agent, 'get_loss_stats'):

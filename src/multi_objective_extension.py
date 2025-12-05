@@ -1,19 +1,24 @@
 """
-MULTI-OBJECTIVE EXTENSION FOR TRADE-BASED TRAINER
-==================================================
+MULTI-OBJECTIVE EXTENSION FOR TRADE-BASED TRAINER (v4.3 - FIXED)
+=========================================================================
 
 This module extends the existing trade_based_trainer with multi-objective rewards.
+
+v4.3 FIXES:
+- pnl_quality: Removed 0.5 loser penalty - now negative P&L = negative reward (guaranteed)
+- risk_reward: Added caps to prevent value explosions when max_adverse is tiny
+
+v4.1 FEATURES (preserved):
+- ALL rewards scale with trade size
+- NO floors or caps that break proportionality (except risk_reward caps for stability)
+- Bigger losses = proportionally bigger penalties
+- Everything scales linearly with P&L magnitude
 
 USAGE:
 ------
 1. Copy this file to src/multi_objective_extension.py
 2. In trade_based_trainer.py, add: from src.multi_objective_extension import ...
 3. Enable multi-objective mode in config: 'use_multi_objective': True
-
-The extension:
-- Adds multi-objective reward calculation to TradeBasedMultiTimeframeEnv
-- Creates MultiObjectiveDQNAgent that wraps existing DQNAgent
-- Keeps ALL existing infrastructure (multi-timeframe, pre-computed obs, etc.)
 """
 
 import numpy as np
@@ -30,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PART 1: MULTI-OBJECTIVE REWARD CALCULATOR
+# PART 1: MULTI-OBJECTIVE REWARD CALCULATOR (v4.3 - FIXED)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Objective names (5 objectives)
@@ -39,7 +44,11 @@ OBJECTIVES = ['pnl_quality', 'hold_duration', 'win_achieved', 'loss_control', 'r
 
 @dataclass
 class MORewardConfig:
-    """Configuration for multi-objective rewards"""
+    """
+    Configuration for multi-objective rewards (v4.3)
+    
+    All parameter names preserved from original for backward compatibility.
+    """
     
     # Objective weights (must sum to 1.0 for proper scaling)
     weight_pnl_quality: float = 0.40
@@ -53,13 +62,17 @@ class MORewardConfig:
     take_profit_pct: float = 0.03
     fee_rate: float = 0.001
     
-    # Hold duration settings
-    min_hold_for_bonus: int = 12      # 1 hour at 5m
-    max_hold_steps: int = 300         # 25 hours at 5m
-    target_hold_steps: int = 48       # 4 hours at 5m (ideal hold)
+    # Hold duration settings (ORIGINAL NAMES PRESERVED)
+    min_hold_for_bonus: int = 12      # Below this = penalty (1 hour at 5m)
+    max_hold_steps: int = 300         # Timeout threshold
+    target_hold_steps: int = 48       # Optimal hold (4 hours at 5m)
     
     # Reward scaling
-    pnl_scale: float = 50.0           # Scale PnL rewards
+    pnl_scale: float = 50.0           # Base P&L multiplier (1% = 0.5 base reward)
+    
+    # v4.3: Risk-reward caps to prevent explosions
+    max_rr_ratio: float = 5.0         # Cap R:R ratio
+    max_rr_magnitude: float = 2.0     # Cap magnitude factor
     
     def get_weights(self) -> Dict[str, float]:
         return {
@@ -73,7 +86,7 @@ class MORewardConfig:
 
 class MultiObjectiveRewardCalculator:
     """
-    Calculates 5 separate reward signals from trade outcomes
+    Calculates 5 separate reward signals from trade outcomes (v4.3 - FIXED)
     
     Each objective teaches a different aspect of good trading:
     1. pnl_quality   - Maximize profit, minimize loss magnitude
@@ -81,6 +94,12 @@ class MultiObjectiveRewardCalculator:
     3. win_achieved  - Win more trades than you lose
     4. loss_control  - Cut losers early, before stop-loss
     5. risk_reward   - Achieve good risk/reward ratios
+    
+    v4.3 FIXES:
+    - pnl_quality: Full penalty for losers (no 0.5 factor)
+      → Ensures negative P&L = negative pnl_quality reward
+    - risk_reward: Caps on rr_ratio and magnitude to prevent explosions
+      → Prevents +50 rewards from tiny max_adverse values
     """
     
     def __init__(self, config: MORewardConfig):
@@ -97,6 +116,8 @@ class MultiObjectiveRewardCalculator:
         """
         Calculate multi-objective rewards for a completed trade
         
+        ALL rewards scale proportionally with trade size.
+        
         Args:
             pnl_pct: Net P&L as percentage (e.g., 0.02 = 2%)
             hold_duration: Number of steps held
@@ -108,159 +129,235 @@ class MultiObjectiveRewardCalculator:
             Dict with reward for each objective
         """
         rewards = {}
+        is_winner = pnl_pct > 0
         
-        # 1. PNL_QUALITY: Scaled P&L with asymmetric treatment
-        rewards['pnl_quality'] = self._calc_pnl_quality(pnl_pct)
+        # Pre-calculate magnitude factor used by multiple objectives
+        magnitude = abs(pnl_pct) * self.config.pnl_scale  # e.g., 2% × 50 = 1.0
         
-        # 2. HOLD_DURATION: Reward for holding appropriately
-        rewards['hold_duration'] = self._calc_hold_duration(pnl_pct, hold_duration)
+        # 1. PNL_QUALITY: Pure P&L signal (v4.3: full penalty for losers)
+        rewards['pnl_quality'] = self._calc_pnl_quality(pnl_pct, hold_duration, is_winner)
         
-        # 3. WIN_ACHIEVED: Binary win/loss signal
-        rewards['win_achieved'] = self._calc_win_achieved(pnl_pct)
+        # 2. HOLD_DURATION: Scaled with both duration and magnitude
+        rewards['hold_duration'] = self._calc_hold_duration(pnl_pct, hold_duration, is_winner, magnitude)
         
-        # 4. LOSS_CONTROL: Reward for cutting losers early
-        rewards['loss_control'] = self._calc_loss_control(pnl_pct, exit_reason)
+        # 3. WIN_ACHIEVED: Scaled by P&L ratio to targets
+        rewards['win_achieved'] = self._calc_win_achieved(pnl_pct, hold_duration, is_winner)
         
-        # 5. RISK_REWARD: Based on excursions
+        # 4. LOSS_CONTROL: Fully scaled with loss magnitude
+        rewards['loss_control'] = self._calc_loss_control(pnl_pct, hold_duration, exit_reason, is_winner, magnitude)
+        
+        # 5. RISK_REWARD: Scaled with caps to prevent explosions (v4.3 fix)
         rewards['risk_reward'] = self._calc_risk_reward(
-            pnl_pct, max_favorable_excursion, max_adverse_excursion
+            pnl_pct, hold_duration, max_favorable_excursion, max_adverse_excursion, is_winner, magnitude
         )
         
         return rewards
     
-    def _calc_pnl_quality(self, pnl_pct: float) -> float:
+    def _calc_pnl_quality(self, pnl_pct: float, hold_duration: int, is_winner: bool) -> float:
         """
-        PNL Quality objective
+        PNL Quality objective (v4.3 - FIXED)
         
-        - Wins: Scaled reward (bigger wins = bigger rewards)
-        - Losses: Scaled but capped (small losses punished, big losses capped)
-        """
-        if pnl_pct > 0:
-            # Wins: aggressive scaling
-            return pnl_pct * self.config.pnl_scale * 1.5
-        else:
-            # Losses: capped scaling
-            scaled = pnl_pct * self.config.pnl_scale
-            return max(scaled, -1.0)  # Cap at -1.0
-    
-    def _calc_hold_duration(self, pnl_pct: float, hold_duration: int) -> float:
-        """
-        Hold Duration objective
+        FORMULA: pnl × scale (same for winners AND losers)
         
-        - Reward for holding winning trades longer
-        - Penalty for holding losing trades too long
-        - Optimal is around target_hold_steps
+        v4.3 FIX: Removed 0.5 loser penalty
+        - Before: losers got pnl × scale × 0.5 (half penalty)
+        - After: losers get pnl × scale (full penalty)
+        
+        This ensures:
+        - Negative avg P&L → Negative avg pnl_quality (guaranteed)
+        - Positive avg P&L → Positive avg pnl_quality (guaranteed)
         """
         cfg = self.config
         
-        if pnl_pct > 0:
-            # WINNING TRADE: reward longer holds up to target
-            if hold_duration >= cfg.target_hold_steps:
-                # Held long enough - full reward
-                return 1.0
-            elif hold_duration >= cfg.min_hold_for_bonus:
-                # Partial reward
-                progress = (hold_duration - cfg.min_hold_for_bonus) / (cfg.target_hold_steps - cfg.min_hold_for_bonus)
-                return 0.3 + 0.7 * progress
-            else:
-                # Too short - reduced reward
-                return 0.1 * (hold_duration / cfg.min_hold_for_bonus)
-        else:
-            # LOSING TRADE: quicker exit is better (up to a point)
-            if hold_duration <= cfg.min_hold_for_bonus:
-                # Cut quickly - good!
-                return 0.5
-            else:
-                # Held too long - penalty
-                excess = hold_duration - cfg.min_hold_for_bonus
-                penalty = min(excess / cfg.target_hold_steps, 1.0)
-                return -0.5 * penalty
+        # v4.3: Same formula for winners AND losers
+        # Full penalty ensures reward accurately reflects P&L direction
+        return pnl_pct * cfg.pnl_scale
     
-    def _calc_win_achieved(self, pnl_pct: float) -> float:
+    def _calc_hold_duration(self, pnl_pct: float, hold_duration: int, is_winner: bool, magnitude: float) -> float:
         """
-        Win Achieved objective
+        Hold Duration objective (v4.1 - FULLY SCALED)
         
-        Binary signal with magnitude based on how much you won/lost
-        """
-        if pnl_pct > 0:
-            # Win - reward scales with size but capped
-            return min(1.0, pnl_pct / self.config.take_profit_pct)
-        else:
-            # Loss - penalty scales with size but capped
-            return max(-1.0, pnl_pct / self.config.stop_loss_pct)
-    
-    def _calc_loss_control(self, pnl_pct: float, exit_reason: str) -> float:
-        """
-        Loss Control objective
+        FORMULA: direction × hold_quality × magnitude_factor
         
-        Reward for cutting losers before stop-loss
-        Penalty for hitting stop-loss or holding losers too long
+        - direction: +1 (winners), -1 (losers)
+        - hold_quality: How well you held (0.1 to 1.5 for winners, 0.7 to 1.3 for losers)
+        - magnitude_factor: Scales with trade size (no cap)
         """
         cfg = self.config
         
-        if pnl_pct > 0:
-            # Winning trade - neutral for this objective
+        # Direction: +1 for winners, -1 for losers
+        direction = 1.0 if is_winner else -1.0
+        
+        # Hold quality (how well you held relative to optimal)
+        hold_quality = self._get_hold_multiplier(hold_duration, is_winner)
+        
+        # Magnitude factor - scales linearly with trade size (no cap!)
+        magnitude_factor = magnitude / 3.0  # Normalized so 3% trade = 1.0
+        
+        return direction * hold_quality * magnitude_factor
+    
+    def _calc_win_achieved(self, pnl_pct: float, hold_duration: int, is_winner: bool) -> float:
+        """
+        Win Achieved objective (v4.1 - PURE)
+        
+        FORMULA: pnl_ratio (NO hold duration influence!)
+        
+        This is a PURE win/loss signal:
+        - Wins scale with how much you won relative to take-profit
+        - Losses scale with how much you lost relative to stop-loss
+        - Hold duration has NO effect here
+        """
+        cfg = self.config
+        
+        if is_winner:
+            # Ratio to take-profit (e.g., 3% win / 3% TP = 1.0, 6% win = 2.0)
+            return pnl_pct / cfg.take_profit_pct
+        else:
+            # Ratio to stop-loss (e.g., -1.5% / -3% SL = -0.5, -3% = -1.0)
+            return pnl_pct / cfg.stop_loss_pct  # Already negative
+    
+    def _calc_loss_control(self, pnl_pct: float, hold_duration: int, exit_reason: str, 
+                           is_winner: bool, magnitude: float) -> float:
+        """
+        Loss Control objective (v4.1 - FULLY SCALED)
+        
+        FORMULA: control_quality × magnitude_factor
+        
+        - control_quality: How well you managed the loss (-1 to +1)
+        - magnitude_factor: Scales with loss size (bigger loss = bigger reward/penalty)
+        
+        For WINNERS: Returns 0 (neutral)
+        For LOSERS: Rewards cutting early, penalizes letting losses run
+        """
+        cfg = self.config
+        
+        if is_winner:
             return 0.0
         
-        # Losing trade
+        loss_magnitude = abs(pnl_pct)
+        
+        # Calculate control quality (-1 to +1)
         if exit_reason == 'agent':
-            # Agent chose to exit - reward based on how much was saved
-            loss_magnitude = abs(pnl_pct)
-            if loss_magnitude < cfg.stop_loss_pct * 0.5:
-                # Cut very early - great!
-                return 1.0
-            elif loss_magnitude < cfg.stop_loss_pct:
-                # Cut before stop-loss - good
-                saved = cfg.stop_loss_pct - loss_magnitude
-                return 0.5 + 0.5 * (saved / cfg.stop_loss_pct)
-            else:
-                # Somehow lost more than stop-loss?
-                return -0.5
-        
+            # Agent chose to exit - how much did they save?
+            saved_ratio = (cfg.stop_loss_pct - loss_magnitude) / cfg.stop_loss_pct
+            control_quality = saved_ratio
+            
         elif exit_reason == 'stop_loss':
-            # Hit stop-loss - bad, could have cut earlier
-            return -1.0
-        
+            control_quality = -0.2
+            
         elif exit_reason == 'timeout':
-            # Timed out with a loss - also bad
-            return -0.8
+            control_quality = -0.5
+            
+        else:
+            control_quality = 0.0
         
-        return 0.0
+        # Magnitude factor - bigger losses make this more important
+        magnitude_factor = loss_magnitude / cfg.stop_loss_pct
+        
+        return control_quality * magnitude_factor
     
     def _calc_risk_reward(
         self,
         pnl_pct: float,
+        hold_duration: int,
         max_favorable: float,
-        max_adverse: float
+        max_adverse: float,
+        is_winner: bool,
+        magnitude: float
     ) -> float:
         """
-        Risk/Reward objective
+        Risk/Reward objective (v4.3 - FIXED WITH CAPS)
         
-        Reward for achieving good risk/reward ratios
+        FORMULA: rr_quality × magnitude_factor (both capped)
+        
+        v4.3 FIX: Added caps to prevent explosions
+        - Before: rr_ratio could be 200+ when max_adverse was tiny (0.01%)
+        - After: rr_ratio capped at 5.0, magnitude_factor capped at 2.0
+        
+        This prevents single trades from dominating the average.
         """
-        # Avoid division by zero
-        if abs(max_adverse) < 0.001:
-            max_adverse = -0.001
+        cfg = self.config
         
-        if max_favorable <= 0:
-            max_favorable = 0.001
+        # Avoid division by zero with small defaults
+        if abs(max_adverse) < 0.0001:
+            max_adverse = -0.0001
+        if max_favorable < 0.0001:
+            max_favorable = 0.0001
         
-        # Calculate realized risk/reward
-        if pnl_pct > 0:
-            # Won: reward = profit / max_drawdown
-            rr_ratio = pnl_pct / abs(max_adverse)
-            # Scale: 1.0 ratio = 0.5 reward, 2.0 ratio = 1.0 reward
-            return min(1.0, rr_ratio / 2.0)
+        if is_winner:
+            # Risk/Reward ratio: profit / max drawdown
+            raw_rr_ratio = pnl_pct / abs(max_adverse)
+            
+            # v4.3 FIX: Cap to prevent explosions
+            rr_ratio = min(raw_rr_ratio, cfg.max_rr_ratio)
+            
+            # Quality: compare to target RR of 2.0
+            rr_quality = rr_ratio / 2.0
+            
         else:
-            # Lost: penalty based on how much profit was given back
-            if max_favorable > 0:
-                # Had profit but gave it back
-                giveback = max_favorable - pnl_pct
-                penalty = giveback / max_favorable
-                return -min(1.0, penalty)
+            # For losers: how much profit did you give back?
+            if max_favorable > abs(pnl_pct) * 0.1:
+                total_swing = max_favorable - pnl_pct
+                raw_giveback = total_swing / max_favorable
+                
+                # v4.3 FIX: Cap giveback ratio
+                giveback_ratio = min(raw_giveback, cfg.max_rr_ratio)
+                rr_quality = -giveback_ratio
             else:
-                # Never had profit - small penalty
-                return -0.3
+                # Never had meaningful profit - scale with loss
+                rr_quality = pnl_pct / cfg.stop_loss_pct
+        
+        # v4.3 FIX: Cap magnitude factor
+        magnitude_factor = min(magnitude / 2.0, cfg.max_rr_magnitude)
+        
+        return rr_quality * magnitude_factor
+    
+    def _get_hold_multiplier(self, hold_duration: int, is_winner: bool) -> float:
+        """
+        Calculate hold duration multiplier (shared by multiple objectives)
+        
+        Winners: Longer hold = higher multiplier (reward patience)
+        Losers: Shorter hold = lower multiplier (reward cutting)
+        
+        Returns: 0.1 to 1.5 for winners, 0.7 to 1.3 for losers
+        """
+        cfg = self.config
+        
+        min_hold = cfg.min_hold_for_bonus
+        target_hold = cfg.target_hold_steps
+        extended_hold = min(cfg.max_hold_steps - 50, 200)
+        
+        if is_winner:
+            if hold_duration < min_hold:
+                t = hold_duration / min_hold
+                mult = 0.1 + t * 0.4
+                
+            elif hold_duration < target_hold:
+                t = (hold_duration - min_hold) / (target_hold - min_hold)
+                mult = 0.5 + t * 0.5
+                
+            elif hold_duration < extended_hold:
+                t = (hold_duration - target_hold) / (extended_hold - target_hold)
+                mult = 1.0 + t * 0.5
+                
+            else:
+                mult = 1.5
+        else:
+            if hold_duration < min_hold:
+                mult = 0.7
+                
+            elif hold_duration < target_hold:
+                t = (hold_duration - min_hold) / (target_hold - min_hold)
+                mult = 0.7 + t * 0.3
+                
+            elif hold_duration < extended_hold:
+                t = (hold_duration - target_hold) / (extended_hold - target_hold)
+                mult = 1.0 + t * 0.3
+                
+            else:
+                mult = 1.3
+        
+        return mult
     
     def get_weighted_reward(self, rewards: Dict[str, float]) -> float:
         """Convert multi-objective rewards to single scalar using weights"""
@@ -347,13 +444,6 @@ class MultiHeadDQNetwork(nn.Module):
     ) -> torch.Tensor:
         """
         Get weighted combination of Q-values for action selection
-        
-        Args:
-            state: State tensor
-            weights: Objective weights
-        
-        Returns:
-            Combined Q-values tensor [batch, actions]
         """
         q_dict = self.forward(state)
         
@@ -400,10 +490,6 @@ class DuelingHead(nn.Module):
 class MOReplayBuffer:
     """
     Replay buffer that stores multi-objective rewards
-    
-    Each experience contains:
-    - state, action, next_state, done (as usual)
-    - rewards: Dict[objective, reward]
     """
     
     def __init__(self, capacity: int, state_dim: int):
@@ -572,8 +658,6 @@ class MultiObjectiveDQNAgent:
     def act(self, state: np.ndarray, training: bool = True) -> int:
         """
         Select action using epsilon-greedy with weighted Q-values
-        
-        Same interface as regular DQNAgent.act()
         """
         if training and random.random() < self.epsilon:
             return random.randint(0, self.config.action_dim - 1)
@@ -598,14 +682,8 @@ class MultiObjectiveDQNAgent:
     ):
         """
         Store experience in replay buffer
-        
-        Args:
-            state, action, reward, next_state, done: Standard experience
-            mo_rewards: Optional multi-objective rewards dict
-                       If None, scalar reward is used for all objectives
         """
         if mo_rewards is None:
-            # Fall back to scalar reward for all objectives
             mo_rewards = {obj: reward for obj in OBJECTIVES}
         
         self.memory.push(state, action, mo_rewards, next_state, done)
@@ -637,12 +715,10 @@ class MultiObjectiveDQNAgent:
         # Get next Q-values from target
         with torch.no_grad():
             if self.config.use_double_dqn:
-                # Double DQN: use online network to select actions
                 next_q_online = self.q_network.get_combined_q_values(
                     next_states, self.config.objective_weights
                 )
                 next_actions = next_q_online.argmax(dim=1, keepdim=True)
-                
                 next_q_target = self.target_network(next_states)
             else:
                 next_q_target = self.target_network(next_states)
@@ -652,10 +728,8 @@ class MultiObjectiveDQNAgent:
         losses = {}
         
         for obj in OBJECTIVES:
-            # Current Q for taken actions
             current_q = current_q_dict[obj].gather(1, actions.unsqueeze(1)).squeeze(1)
             
-            # Target Q
             if self.config.use_double_dqn:
                 next_q = next_q_target[obj].gather(1, next_actions).squeeze(1)
             else:
@@ -663,10 +737,7 @@ class MultiObjectiveDQNAgent:
             
             target_q = rewards[obj] + self.config.gamma * next_q * (1 - dones)
             
-            # Loss
             loss = nn.MSELoss()(current_q, target_q)
-            
-            # Weight the loss by objective weight
             weighted_loss = loss * self.config.objective_weights[obj]
             total_loss += weighted_loss
             
@@ -741,51 +812,26 @@ class MultiObjectiveDQNAgent:
 # PART 5: ENVIRONMENT EXTENSION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def add_multi_objective_to_env(env_class):
-    """
-    Decorator/mixin to add multi-objective reward calculation to environment
-    
-    Usage:
-        from trade_based_mtf_env import TradeBasedMultiTimeframeEnv
-        
-        # Add multi-objective support
-        env = TradeBasedMultiTimeframeEnv(...)
-        add_mo_support(env, mo_config)
-    """
-    pass  # Not needed - we'll calculate MO rewards in the trainer
-
-
 def calculate_mo_rewards_from_trade(
     trade_result,  # TradeResult dataclass
     mo_config: MORewardConfig
 ) -> Dict[str, float]:
     """
     Calculate multi-objective rewards from a TradeResult
-    
-    This is called in the trainer after each trade completes.
-    
-    Args:
-        trade_result: TradeResult from environment
-        mo_config: Multi-objective reward configuration
-    
-    Returns:
-        Dict of rewards per objective
     """
     calculator = MultiObjectiveRewardCalculator(mo_config)
     
-    # Extract trade info
     pnl_pct = trade_result.pnl_pct
     hold_duration = trade_result.hold_duration
     exit_reason = trade_result.exit_reason
     
-    # For MFE/MAE, we'd need to track these in the environment
-    # For now, estimate based on P&L
+    # Estimate MFE/MAE if not tracked
     if pnl_pct > 0:
-        max_favorable = pnl_pct * 1.2  # Assume some giveback
-        max_adverse = -pnl_pct * 0.3   # Assume some drawdown
+        max_favorable = pnl_pct * 1.2
+        max_adverse = -pnl_pct * 0.3
     else:
-        max_favorable = abs(pnl_pct) * 0.2  # Small profit at some point
-        max_adverse = pnl_pct * 1.1   # Slightly worse than final
+        max_favorable = abs(pnl_pct) * 0.2
+        max_adverse = pnl_pct * 1.1
     
     return calculator.calculate(
         pnl_pct=pnl_pct,
@@ -797,77 +843,212 @@ def calculate_mo_rewards_from_trade(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PART 6: USAGE EXAMPLE / INTEGRATION GUIDE
+# PART 6: TESTING
 # ═══════════════════════════════════════════════════════════════════════════════
 
-"""
-INTEGRATION INTO trade_based_trainer.py:
-========================================
+def test_v43_fixes():
+    """Test v4.3 fixes for pnl_quality and risk_reward"""
+    
+    print("=" * 100)
+    print("MULTI-OBJECTIVE REWARDS v4.3 - FIXED")
+    print("=" * 100)
+    print()
+    print("v4.3 FIXES:")
+    print("  1. pnl_quality: Full penalty for losers (removed 0.5 factor)")
+    print("     → Negative P&L = Negative reward (guaranteed)")
+    print("  2. risk_reward: Caps on rr_ratio (5.0) and magnitude (2.0)")
+    print("     → Prevents explosion from tiny max_adverse values")
+    print()
+    
+    config = MORewardConfig()
+    calculator = MultiObjectiveRewardCalculator(config)
+    
+    # Test 1: pnl_quality fix - verify negative P&L = negative reward
+    print("-" * 100)
+    print("TEST 1: pnl_quality fix - negative P&L must give negative reward")
+    print("-" * 100)
+    
+    test_pnl_cases = [
+        (0.03, "Winner +3%"),
+        (0.015, "Winner +1.5%"),
+        (-0.015, "Loser -1.5%"),
+        (-0.03, "Loser -3%"),
+    ]
+    
+    for pnl, desc in test_pnl_cases:
+        reward = calculator._calc_pnl_quality(pnl, 30, pnl > 0)
+        sign = "Y" if (pnl > 0 and reward > 0) or (pnl < 0 and reward < 0) else "N"
+        print(f"  {desc:20s}: pnl_quality = {reward:+.3f} {sign}")
+    
+    # Simulate mixed portfolio
+    print()
+    print("  Simulation: 46% win rate, -0.28% avg P&L")
+    np.random.seed(42)
+    n_trades = 1000
+    pnl_list = []
+    reward_list = []
+    
+    for i in range(n_trades):
+        if i < 460:
+            pnl = np.random.uniform(0.005, 0.025)
+        else:
+            pnl = -np.random.uniform(0.01, 0.026)
+        pnl_list.append(pnl)
+        reward_list.append(calculator._calc_pnl_quality(pnl, 30, pnl > 0))
+    
+    avg_pnl = np.mean(pnl_list)
+    avg_reward = np.mean(reward_list)
+    sign_match = (avg_pnl > 0 and avg_reward > 0) or (avg_pnl < 0 and avg_reward < 0)
+    
+    print(f"    Avg P&L: {avg_pnl*100:+.3f}%")
+    print(f"    Avg pnl_quality: {avg_reward:+.3f}")
+    print(f"    Sign match: {' CORRECT' if sign_match else ' WRONG'}")
+    
+    # Test 2: risk_reward fix - verify no explosions
+    print()
+    print("-" * 100)
+    print("TEST 2: risk_reward fix - capped to prevent explosions")
+    print("-" * 100)
+    
+    test_rr_cases = [
+        # (pnl, mfe, mae, description)
+        (0.02, 0.025, -0.0001, "Winner +2%, tiny drawdown (-0.01%)"),
+        (0.02, 0.025, -0.005, "Winner +2%, normal drawdown (-0.5%)"),
+        (0.02, 0.025, -0.01, "Winner +2%, larger drawdown (-1%)"),
+        (-0.02, 0.01, -0.025, "Loser -2%, had +1% potential"),
+        (-0.02, 0.0, -0.025, "Loser -2%, no potential"),
+    ]
+    
+    for pnl, mfe, mae, desc in test_rr_cases:
+        is_winner = pnl > 0
+        magnitude = abs(pnl) * config.pnl_scale
+        reward = calculator._calc_risk_reward(pnl, 30, mfe, mae, is_winner, magnitude)
+        capped = "CAPPED" if abs(reward) <= 5.0 else "EXPLODED!"
+        print(f"  {desc}")
+        print(f"    risk_reward = {reward:+.3f} ({capped})")
+    
+    # Test 3: Full scenario simulation
+    print()
+    print("-" * 100)
+    print("TEST 3: Full scenario - 46% win rate, -0.28% avg P&L")
+    print("-" * 100)
+    
+    np.random.seed(123)
+    n_trades = 100
+    n_winners = 46
+    
+    all_pnl = []
+    all_rewards = {obj: [] for obj in OBJECTIVES}
+    
+    for i in range(n_trades):
+        if i < n_winners:
+            pnl = np.random.uniform(0.005, 0.025)
+            mfe = pnl * np.random.uniform(1.0, 1.2)
+            mae = -np.random.uniform(0.001, 0.008)
+            exit_reason = 'agent'
+        else:
+            pnl = -np.random.uniform(0.01, 0.026)
+            mfe = np.random.uniform(0, 0.005)
+            mae = pnl * 1.1
+            exit_reason = np.random.choice(['agent', 'stop_loss'], p=[0.7, 0.3])
+        
+        all_pnl.append(pnl)
+        
+        rewards = calculator.calculate(
+            pnl_pct=pnl,
+            hold_duration=30,
+            exit_reason=exit_reason,
+            max_favorable_excursion=mfe,
+            max_adverse_excursion=mae
+        )
+        
+        for obj in OBJECTIVES:
+            all_rewards[obj].append(rewards[obj])
+    
+    # Use default weights
+    weights = config.get_weights()
+    
+    print(f"  Avg P&L: {np.mean(all_pnl)*100:.2f}%")
+    print(f"  Win Rate: {n_winners}%")
+    print()
+    
+    print("  PER-OBJECTIVE AVERAGES:")
+    total = 0
+    for obj in OBJECTIVES:
+        avg = np.mean(all_rewards[obj])
+        w = weights[obj]
+        contrib = avg * w
+        total += contrib
+        print(f"    {obj:15s}: {avg:+.3f} × {w:.2f} = {contrib:+.4f}")
+    
+    print(f"    {'─' * 45}")
+    print(f"    {'TOTAL':15s}: {total:+.4f}")
+    print()
+    
+    if total > 0 and np.mean(all_pnl) < 0:
+        print("   WARNING: Positive reward on negative P&L!")
+    elif total < 0 and np.mean(all_pnl) < 0:
+        print("   CORRECT: Negative reward on negative P&L!")
+    
+    print()
+    print("=" * 100)
 
-1. Add imports at top:
-   ```python
-   from src.multi_objective_extension import (
-       MultiObjectiveDQNAgent, MODQNConfig, MORewardConfig,
-       calculate_mo_rewards_from_trade, OBJECTIVES
-   )
-   ```
 
-2. Add config option:
-   ```python
-   'use_multi_objective': True,  # Enable multi-objective mode
-   'mo_weights': {
-       'pnl_quality': 0.35,
-       'hold_duration': 0.25,
-       'win_achieved': 0.15,
-       'loss_control': 0.15,
-       'risk_reward': 0.10,
-   },
-   ```
+def test_scaled_mo_rewards():
+    """Test the scaled multi-objective reward system"""
+    
+    print("=" * 100)
+    print("MULTI-OBJECTIVE REWARDS v4.3 - FULLY SCALED")
+    print("=" * 100)
+    print()
+    
+    config = MORewardConfig()
+    calculator = MultiObjectiveRewardCalculator(config)
+    
+    test_cases = [
+        # Small wins
+        (0.005, 3, 'agent', 0.006, -0.001, "Tiny win +0.5%, quick exit"),
+        (0.005, 48, 'agent', 0.006, -0.001, "Tiny win +0.5%, target hold"),
+        
+        # Medium wins
+        (0.02, 3, 'agent', 0.024, -0.006, "Medium win +2%, quick exit"),
+        (0.02, 48, 'agent', 0.024, -0.006, "Medium win +2%, target hold"),
+        (0.02, 100, 'take_profit', 0.02, -0.004, "Medium win +2%, extended"),
+        
+        # Big wins
+        (0.04, 48, 'take_profit', 0.04, -0.008, "Big win +4%, target hold"),
+        (0.06, 48, 'take_profit', 0.06, -0.01, "Huge win +6%, target hold"),
+        
+        # Small losses
+        (-0.005, 3, 'agent', 0.001, -0.006, "Tiny loss -0.5%, quick cut"),
+        (-0.005, 48, 'stop_loss', 0.001, -0.005, "Tiny loss -0.5%, stop-loss"),
+        
+        # Medium losses  
+        (-0.015, 3, 'agent', 0.003, -0.016, "Medium loss -1.5%, quick cut"),
+        (-0.015, 48, 'stop_loss', 0.003, -0.015, "Medium loss -1.5%, stop-loss"),
+        
+        # Full losses
+        (-0.03, 3, 'agent', 0.006, -0.033, "Full loss -3%, quick cut"),
+        (-0.03, 48, 'stop_loss', 0.006, -0.03, "Full loss -3%, stop-loss"),
+        (-0.03, 150, 'timeout', 0.006, -0.033, "Full loss -3%, timeout"),
+    ]
+    
+    print(f"{'Description':<32} | {'pnl_q':>8} | {'hold_d':>8} | {'win_a':>8} | {'loss_c':>8} | {'rr':>8} | {'TOTAL':>8}")
+    print("-" * 110)
+    
+    for pnl_pct, hold, exit_reason, mfe, mae, desc in test_cases:
+        rewards = calculator.calculate(pnl_pct, hold, exit_reason, mfe, mae)
+        total = calculator.get_weighted_reward(rewards)
+        
+        print(f"{desc:<32} | {rewards['pnl_quality']:>+8.3f} | {rewards['hold_duration']:>+8.3f} | "
+              f"{rewards['win_achieved']:>+8.3f} | {rewards['loss_control']:>+8.3f} | "
+              f"{rewards['risk_reward']:>+8.3f} | {total:>+8.3f}")
+    
+    print()
+    print("=" * 100)
 
-3. In _train_rl_agent(), when creating agent:
-   ```python
-   if self.config.get('use_multi_objective', False):
-       mo_config = MODQNConfig(
-           state_dim=state_dim,
-           action_dim=action_dim,
-           hidden_dims=self.config['rl_hidden_dims'],
-           use_dueling=self.config['use_dueling_dqn'],
-           use_double_dqn=self.config['use_double_dqn'],
-           batch_size=self.config.get('rl_batch_size', 256),
-           memory_size=self.config.get('rl_memory_size', 50000),
-           epsilon_start=self.config.get('epsilon_start', 1.0),
-           epsilon_end=self.config.get('epsilon_end', 0.05),
-           epsilon_decay=self.config.get('epsilon_decay', 0.9998),
-           objective_weights=self.config.get('mo_weights', {}),
-       )
-       self.rl_agent = MultiObjectiveDQNAgent(config=mo_config)
-   else:
-       # Regular DQNAgent (existing code)
-       self.rl_agent = DQNAgent(config=rl_config)
-   ```
 
-4. In _run_trade_based_episode(), after trade completes:
-   ```python
-   # Store experience with multi-objective rewards
-   if self.config.get('use_multi_objective', False) and env.trade_result:
-       mo_rewards = calculate_mo_rewards_from_trade(
-           env.trade_result,
-           MORewardConfig(
-               stop_loss_pct=self.config.get('stop_loss', 0.03),
-               take_profit_pct=self.config.get('take_profit', 0.03),
-               **self.config.get('mo_weights', {})
-           )
-       )
-       self.rl_agent.remember(state, action, reward, next_state, done, mo_rewards=mo_rewards)
-   else:
-       self.rl_agent.remember(state, action, reward, next_state, done)
-   ```
-
-5. Logging - add per-objective stats:
-   ```python
-   if self.config.get('use_multi_objective', False):
-       loss_stats = self.rl_agent.get_loss_stats()
-       for obj, loss in loss_stats.items():
-           logger.info(f"    {obj}: loss={loss:.4f}")
-   ```
-"""
+if __name__ == "__main__":
+    test_v43_fixes()
+    print("\n\n")
+    test_scaled_mo_rewards()
