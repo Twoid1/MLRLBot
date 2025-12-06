@@ -11,6 +11,7 @@ KEY CHANGES:
 4. Tracks trade-specific metrics
 5. Supports both old and new environment types
 6. MULTI-OBJECTIVE REWARDS (v4.0) - 5 separate learning signals
+7. PERCENTILE ANALYSIS REPORTING - See training progression across 10 buckets
 
 The agent learns:
 - WHEN to enter (good setups)
@@ -47,6 +48,21 @@ except ImportError:
 
 # Explainability import
 from src.explainability_integration import ExplainableRL
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PERCENTILE REPORTER (NEW!)
+# ═══════════════════════════════════════════════════════════════════════════════
+try:
+    from src.rl_reporter_fast import (
+        FastRLTrainingReporter,
+        generate_percentile_report,
+        quick_percentile_summary,
+        PercentileAnalyzer
+    )
+    PERCENTILE_REPORTER_AVAILABLE = True
+except ImportError:
+    PERCENTILE_REPORTER_AVAILABLE = False
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MULTI-OBJECTIVE EXTENSION (v4.0)
@@ -152,6 +168,7 @@ class TradeBasedTrainer:
     3. Rewards only at episode end
     4. Trade-specific metrics tracking
     5. MULTI-OBJECTIVE mode (v4.0) - 5 separate reward signals
+    6. PERCENTILE ANALYSIS - See exactly where training degrades
     """
     
     def __init__(self, config_path: Optional[str] = None):
@@ -190,6 +207,11 @@ class TradeBasedTrainer:
         # Trade-specific tracking
         self.trade_history = []
         self.episode_trade_results = []
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # EPISODE RESULTS FOR PERCENTILE ANALYSIS (NEW!)
+        # ═══════════════════════════════════════════════════════════════════════
+        self.all_episode_results = []  # Store ALL episode stats for percentile report
         
         # ═══════════════════════════════════════════════════════════════════════
         # MULTI-OBJECTIVE MODE (v4.0)
@@ -382,6 +404,13 @@ class TradeBasedTrainer:
                 logger.info(f"      Win Achieved weight:   {mo_cfg.get('weight_win_achieved', 0.15)}")
                 logger.info(f"      Loss Control weight:   {mo_cfg.get('weight_loss_control', 0.15)}")
                 logger.info(f"      Risk Reward weight:    {mo_cfg.get('weight_risk_reward', 0.10)}")
+        
+        # Check percentile reporter
+        if PERCENTILE_REPORTER_AVAILABLE:
+            logger.info(f"\n   Percentile Reporter: AVAILABLE")
+        else:
+            logger.warning(f"\n   Percentile Reporter: NOT AVAILABLE")
+            logger.warning(f"      Copy rl_reporter_fast.py to src/")
         
         logger.info("\n" + "="*60)
         logger.info(" CONFIGURATION VALIDATION PASSED")
@@ -806,7 +835,12 @@ class TradeBasedTrainer:
             self.config['rl_episodes']
         )
         
-        # Generate report
+        # ═══════════════════════════════════════════════════════════════════════
+        # STORE EPISODE RESULTS FOR PERCENTILE REPORT
+        # ═══════════════════════════════════════════════════════════════════════
+        self.all_episode_results = episode_results
+        
+        # Generate reports (both original and percentile)
         self._generate_trade_based_report(episode_results)
         
         logger.info("\n  Trade-based training complete!")
@@ -866,6 +900,15 @@ class TradeBasedTrainer:
                 # Periodic logging
                 if (episode + 1) % self.config.get('log_interval', 50) == 0:
                     self._log_trade_progress(episode_results[-50:], episode + 1, total_episodes)
+                    
+                    # ═══════════════════════════════════════════════════════════════
+                    # INTERIM PERCENTILE SUMMARY (every 1000 episodes)
+                    # ═══════════════════════════════════════════════════════════════
+                    if (episode + 1) % 1000 == 0 and PERCENTILE_REPORTER_AVAILABLE and len(episode_results) > 100:
+                        try:
+                            quick_percentile_summary(episode_results)
+                        except Exception as e:
+                            logger.warning(f"Could not generate interim summary: {e}")
                 
                 # Validation
                 if (episode + 1) % self.config.get('validation_frequency', 100) == 0:
@@ -1079,6 +1122,24 @@ class TradeBasedTrainer:
             stats['fees_paid'] = tr.fees_paid
             stats['gross_pnl'] = tr.gross_pnl
             
+            # ═══════════════════════════════════════════════════════════════
+            # ADD win_rate FOR PERCENTILE REPORTER
+            # ═══════════════════════════════════════════════════════════════
+            stats['win_rate'] = 1.0 if tr.pnl_pct > 0 else 0.0
+            stats['num_trades'] = 1
+            stats['pnl'] = tr.net_pnl
+            
+            # Add trade to trades list (for reporter compatibility)
+            stats['trades'] = [{
+                'pnl': tr.net_pnl,
+                'pnl_pct': tr.pnl_pct,
+                'hold_duration': tr.hold_duration,
+                'entry_price': tr.entry_price,
+                'exit_price': tr.exit_price,
+                'exit_reason': tr.exit_reason,
+                'fees': tr.fees_paid,
+            }]
+            
             # Track for analysis
             self.episode_trade_results.append({
                 'episode': episode_num + 1,
@@ -1092,6 +1153,12 @@ class TradeBasedTrainer:
                 'fees_paid': tr.fees_paid,
                 'gross_pnl': tr.gross_pnl,
             })
+        else:
+            # No trade result - still add fields for percentile reporter
+            stats['win_rate'] = 0.0
+            stats['num_trades'] = 0
+            stats['pnl'] = 0.0
+            stats['trades'] = []
         
         return stats
 
@@ -1104,7 +1171,7 @@ class TradeBasedTrainer:
         val_episodes = self.config.get('validation_episodes', 50)
         val_results = []
         trade_results = []
-        mo_rewards_list = []  # ← ADD THIS
+        mo_rewards_list = []
         
         # Save epsilon and set to 0
         original_epsilon = self.rl_agent.epsilon
@@ -1200,7 +1267,7 @@ class TradeBasedTrainer:
             std_mo_reward = np.std(weighted_totals)
             
             logger.info(f"  Validation Results (Episode {episode_num}):")
-            logger.info(f"    MO Weighted Reward: {avg_mo_reward:+.3f} ± {std_mo_reward:.3f}")  # ← REAL REWARD
+            logger.info(f"    MO Weighted Reward: {avg_mo_reward:+.3f} ± {std_mo_reward:.3f}")
             logger.info(f"    Win Rate: {win_rate:.1%}")
             logger.info(f"    Avg P&L: {avg_pnl*100:.2f}%")
             logger.info(f"    Avg Hold: {avg_hold:.0f} steps")
@@ -1216,7 +1283,7 @@ class TradeBasedTrainer:
             
             # Return MO reward for early stopping comparison
             return {
-                'avg_reward': avg_mo_reward,  # ← USE MO REWARD FOR EARLY STOPPING
+                'avg_reward': avg_mo_reward,
                 'std_reward': std_mo_reward,
                 'win_rate': win_rate,
                 'avg_pnl': avg_pnl,
@@ -1277,7 +1344,7 @@ class TradeBasedTrainer:
                     weighted_totals.append(total)
                 
                 avg_mo_reward = np.mean(weighted_totals)
-                logger.info(f"    MO Weighted Reward: {avg_mo_reward:+.3f}")  # ← THE REAL REWARD
+                logger.info(f"    MO Weighted Reward: {avg_mo_reward:+.3f}")
             else:
                 avg_mo_reward = 0
                 logger.info(f"    MO Weighted Reward: N/A (no MO data)")
@@ -1320,18 +1387,9 @@ class TradeBasedTrainer:
         """
         Generate COMPREHENSIVE trade-based training diagnostic report
         
-        Sections:
-        1. Executive Summary (with expectancy calculation)
-        2. P&L Distribution Analysis (histogram, best/worst trades)
-        3. Hold Duration Analysis
-        4. Entry Behavior Analysis
-        5. Exit Behavior Analysis
-        6. Per-Asset Detailed Analysis
-        7. Learning Progress Over Time (5 segments)
-        8. Multi-Objective Analysis (if enabled)
-        9. Diagnostic Issues & Recommendations
-        10. Configuration
-        11. Reward System Reference
+        NOW INCLUDES:
+        - Original diagnostic report
+        - ⭐ NEW: Percentile analysis report (0-10%, 10-20%, ..., 90-100%)
         """
         from datetime import datetime
         
@@ -1400,7 +1458,7 @@ class TradeBasedTrainer:
         report_lines.append("")
         
         # ═══════════════════════════════════════════════════════════════════════════
-        # SECTION 8: MULTI-OBJECTIVE ANALYSIS (if enabled)
+        # SECTION: MULTI-OBJECTIVE ANALYSIS (if enabled)
         # ═══════════════════════════════════════════════════════════════════════════
         if self.use_multi_objective and OBJECTIVES:
             report_lines.append("|" + "="*98 + "|")
@@ -1426,32 +1484,6 @@ class TradeBasedTrainer:
                     std = np.std(rewards)
                     report_lines.append(f"    {obj:15s}: {avg:+.3f} ± {std:.3f}")
                 report_lines.append("")
-                
-                # Learning progress per objective
-                n_segments = 5
-                segment_size = len(mo_episodes) // n_segments
-                if segment_size > 0:
-                    report_lines.append("  Learning Progress Per Objective (5 segments):")
-                    report_lines.append("  " + "-"*80)
-                    
-                    header = "  Segment     "
-                    for obj in OBJECTIVES:
-                        header += f"{obj[:8]:>10s}"
-                    report_lines.append(header)
-                    report_lines.append("  " + "-"*80)
-                    
-                    for i in range(n_segments):
-                        start_idx = i * segment_size
-                        end_idx = start_idx + segment_size if i < n_segments - 1 else len(mo_episodes)
-                        segment = mo_episodes[start_idx:end_idx]
-                        
-                        row = f"  {start_idx+1}-{end_idx:<8d}"
-                        for obj in OBJECTIVES:
-                            rewards = [e['mo_rewards'].get(obj, 0) for e in segment]
-                            avg = np.mean(rewards)
-                            row += f"{avg:+10.3f}"
-                        report_lines.append(row)
-                    report_lines.append("")
             
             # Loss stats
             if hasattr(self.rl_agent, 'get_loss_stats'):
@@ -1462,14 +1494,11 @@ class TradeBasedTrainer:
                         report_lines.append(f"    {obj:15s}: {loss:.6f}")
             report_lines.append("")
         
-        # ... (rest of report sections - abbreviated for space)
-        # Include all remaining sections from original report
-        
         # ═══════════════════════════════════════════════════════════════════════════
-        # REMAINING SECTIONS (P&L, Hold Duration, etc.)
+        # REMAINING SECTIONS
         # ═══════════════════════════════════════════════════════════════════════════
         
-        # Section 2: P&L Distribution
+        # P&L Distribution
         report_lines.append("|" + "="*98 + "|")
         report_lines.append("| P&L DISTRIBUTION ANALYSIS" + " "*72 + "|")
         report_lines.append("|" + "="*98 + "|")
@@ -1484,7 +1513,7 @@ class TradeBasedTrainer:
         report_lines.append(f"    95th:  {np.percentile(pnl_values, 95):+.2f}%")
         report_lines.append("")
         
-        # Section 3: Hold Duration
+        # Hold Duration
         report_lines.append("|" + "="*98 + "|")
         report_lines.append("| HOLD DURATION ANALYSIS" + " "*75 + "|")
         report_lines.append("|" + "="*98 + "|")
@@ -1509,7 +1538,7 @@ class TradeBasedTrainer:
                 report_lines.append("   WARNING: Holding losers longer than winners")
         report_lines.append("")
         
-        # Section 5: Exit Behavior
+        # Exit Behavior
         report_lines.append("|" + "="*98 + "|")
         report_lines.append("| EXIT BEHAVIOR ANALYSIS" + " "*75 + "|")
         report_lines.append("|" + "="*98 + "|")
@@ -1532,7 +1561,7 @@ class TradeBasedTrainer:
                 report_lines.append(f"    {reason:14s}: {count:5d} ({pct:5.1f}%)  Avg P&L: {avg_pnl_r:+.2f}%")
         report_lines.append("")
         
-        # Section 6: Per-Asset
+        # Per-Asset
         report_lines.append("|" + "="*98 + "|")
         report_lines.append("| PER-ASSET ANALYSIS" + " "*79 + "|")
         report_lines.append("|" + "="*98 + "|")
@@ -1560,8 +1589,61 @@ class TradeBasedTrainer:
         report_lines.append("END OF DIAGNOSTIC REPORT")
         report_lines.append("="*100)
         
-        # Save report
+        # Save original report
         self._save_report(report_lines)
+        
+        # ═══════════════════════════════════════════════════════════════════════════
+        # ⭐ GENERATE PERCENTILE ANALYSIS REPORT (NEW!)
+        # ═══════════════════════════════════════════════════════════════════════════
+        self._generate_percentile_report(episode_results)
+    
+    def _generate_percentile_report(self, episode_results: list):
+        """
+        Generate the NEW percentile analysis report
+        
+        Shows all metrics broken down by training progress:
+        - 0-10%, 10-20%, ..., 90-100%
+        
+        Helps identify WHERE training starts to degrade
+        """
+        if not PERCENTILE_REPORTER_AVAILABLE:
+            logger.warning("Percentile reporter not available. Copy rl_reporter_fast.py to src/")
+            return
+        
+        if len(episode_results) < 10:
+            logger.warning("Not enough episodes for percentile analysis (need at least 10)")
+            return
+        
+        logger.info("\n" + "="*80)
+        logger.info("GENERATING PERCENTILE ANALYSIS REPORT")
+        logger.info("="*80)
+        
+        try:
+            mode_suffix = "_MO" if self.use_multi_objective else ""
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            report_path = f"results/percentile_report{mode_suffix}_{timestamp}.txt"
+            
+            # Generate the report
+            report = generate_percentile_report(
+                episode_results=episode_results,
+                env=None,
+                agent=self.rl_agent,
+                config=self.config,
+                save_path=report_path,
+                detail_level='full'
+            )
+            
+            # Also print to console
+            print("\n" + "="*120)
+            print("PERCENTILE ANALYSIS - TRAINING PROGRESSION")
+            print("="*120)
+            print(report)
+            
+            logger.info(f"\n  📊 Percentile report saved to: {report_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to generate percentile report: {e}", exc_info=True)
     
     def _save_report(self, report_lines: list):
         """Save report to console and file"""
@@ -1580,7 +1662,7 @@ class TradeBasedTrainer:
         logger.info(f"\n  📊 Report saved to: {report_path}")
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # HELPER METHODS (Same as OptimizedSystemTrainer)
+    # HELPER METHODS
     # ═══════════════════════════════════════════════════════════════════════════
     
     def _try_load_ml_model(self) -> bool:
@@ -1857,13 +1939,6 @@ class TradeBasedTrainer:
 def train_trade_based(config_path: Optional[str] = None, multi_objective: bool = False) -> Dict:
     """
     Train with trade-based episodes (recommended)
-    
-    Each episode = 1 complete trade
-    Agent learns trade quality, not step prediction
-    
-    Args:
-        config_path: Optional path to config JSON
-        multi_objective: Enable multi-objective rewards (5 separate signals)
     """
     trainer = TradeBasedTrainer(config_path)
     

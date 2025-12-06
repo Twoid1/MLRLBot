@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Kraken Trading Bot - Main Entry Point (OPTIMIZED + TRADE-BASED + MULTI-OBJECTIVE)
+Kraken Trading Bot - Main Entry Point (OPTIMIZED + TRADE-BASED + MULTI-OBJECTIVE + PER)
 
 Added:
 - Fast training with GPU support
@@ -9,6 +9,7 @@ Added:
 - Performance benchmarking
 - ⭐ Trade-based training (1 episode = 1 trade)
 - ⭐ Multi-objective rewards (5 separate learning signals)
+- ⭐ Prioritized Experience Replay (learn from important trades)
 """
 
 import argparse
@@ -35,6 +36,7 @@ def handle_train_command_trade_based(args):
     
     ⭐ Each episode = 1 complete trade
     ⭐ Optional: Multi-objective rewards (5 separate signals)
+    ⭐ Optional: Prioritized Experience Replay (learn from important trades)
     
     Agent learns trade QUALITY, not step-by-step prediction
     """
@@ -42,6 +44,9 @@ def handle_train_command_trade_based(args):
     
     # Check if multi-objective mode requested
     use_mo = hasattr(args, 'multi_objective') and args.multi_objective
+    
+    # Check if prioritized replay requested
+    use_per = hasattr(args, 'prioritized_replay') and args.prioritized_replay
     
     logger.info("="*80)
     logger.info("TRADE-BASED TRAINING SYSTEM")
@@ -59,6 +64,12 @@ def handle_train_command_trade_based(args):
         logger.info("    3. win_achieved  - Win more trades")
         logger.info("    4. loss_control  - Cut losers early")
         logger.info("    5. risk_reward   - Good risk/reward ratios")
+    
+    if use_per:
+        logger.info("")
+        logger.info("   PRIORITIZED EXPERIENCE REPLAY ENABLED ")
+        logger.info("  Samples important experiences more frequently")
+        logger.info("  Big wins, big losses get replayed more often")
     
     logger.info("="*80)
     
@@ -121,6 +132,19 @@ def handle_train_command_trade_based(args):
             if hasattr(args, 'weight_rr') and args.weight_rr is not None:
                 trainer.config['mo_reward_config']['weight_risk_reward'] = args.weight_rr
         
+        # ═══════════════════════════════════════════════════════════════════════
+        # ENABLE PRIORITIZED EXPERIENCE REPLAY IF REQUESTED
+        # ═══════════════════════════════════════════════════════════════════════
+        if use_per:
+            trainer.config['use_prioritized_replay'] = True
+            logger.info("\n Prioritized Experience Replay ENABLED")
+            
+            # Apply PER-specific config overrides if provided
+            if hasattr(args, 'per_alpha') and args.per_alpha is not None:
+                trainer.config['per_config']['alpha'] = args.per_alpha
+            if hasattr(args, 'per_beta_start') and args.per_beta_start is not None:
+                trainer.config['per_config']['beta_start'] = args.per_beta_start
+        
         # Determine what to train
         if args.ml:
             logger.info("\n>>> Training ML Predictor Only <<<\n")
@@ -128,14 +152,22 @@ def handle_train_command_trade_based(args):
             logger.info(" ML training complete")
             
         elif args.rl:
-            mode_str = "Multi-Objective " if use_mo else ""
+            mode_str = ""
+            if use_mo:
+                mode_str += "Multi-Objective "
+            if use_per:
+                mode_str += "+ PER "
             logger.info(f"\n>>> {mode_str}Trade-Based RL Training Only <<<\n")
             logger.info("  Will load existing ML model for feature selection")
             results = trainer.train_complete_system(train_ml=False, train_rl=True)
             logger.info(f" {mode_str}Trade-based RL training complete")
             
         elif args.both:
-            mode_str = "Multi-Objective " if use_mo else ""
+            mode_str = ""
+            if use_mo:
+                mode_str += "Multi-Objective "
+            if use_per:
+                mode_str += "+ PER "
             logger.info(f"\n>>> Training Both ML and {mode_str}Trade-Based RL <<<\n")
             results = trainer.train_complete_system(train_ml=True, train_rl=True)
             logger.info(f" Complete {mode_str.lower()}trade-based system training finished")
@@ -149,6 +181,8 @@ def handle_train_command_trade_based(args):
         print(" TRADE-BASED TRAINING COMPLETED SUCCESSFULLY")
         if use_mo:
             print(" (Multi-Objective Mode)")
+        if use_per:
+            print(" (Prioritized Experience Replay)")
         print("="*80)
         
         print("\nWhat the agent learned:")
@@ -163,6 +197,11 @@ def handle_train_command_trade_based(args):
             print("  - win_achieved:  Win more trades")
             print("  - loss_control:  Cut losers early")
             print("  - risk_reward:   Good risk/reward ratios")
+        
+        if use_per:
+            print("\nPrioritized Experience Replay:")
+            print("  - Important trades (big wins/losses) replayed more often")
+            print("  - Faster learning from rare but significant events")
         
         print("\nNext steps:")
         print("  1. Run backtesting: python main.py backtest --walk-forward")
@@ -673,7 +712,7 @@ def main():
     """Main entry point for the trading bot."""
     
     parser = argparse.ArgumentParser(
-        description='Kraken Trading Bot - Hybrid ML/RL System (OPTIMIZED + TRADE-BASED + MULTI-OBJECTIVE)',
+        description='Kraken Trading Bot - Hybrid ML/RL System (OPTIMIZED + TRADE-BASED + MULTI-OBJECTIVE + PER)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -686,6 +725,11 @@ Examples:
   python main.py train --rl --trade-based --multi-objective   # Best of both!
   python main.py train --both --trade-based -mo               # Short flag
   python main.py train --rl --trade-based -mo --episodes 15000
+  
+  # ⭐ PRIORITIZED EXPERIENCE REPLAY (learn from important trades!)
+  python main.py train --rl --trade-based --prioritized-replay
+  python main.py train --rl --trade-based -mo -per    # Best combo! MO + PER
+  python main.py train --both --trade-based -per      # PER without MO
   
   # Multi-objective with custom weights
   python main.py train --rl --trade-based -mo --weight-pnl 0.4 --weight-hold 0.3
@@ -728,6 +772,11 @@ TRAINING MODES COMPARISON:
                   Best for: Learning multiple trading objectives simultaneously.
                   Objectives: pnl_quality, hold_duration, win_achieved, loss_control, risk_reward
                   
+  --trade-based --prioritized-replay (-per) : Learn from important trades more often.
+                  Best for: Faster learning, rare but important events.
+                  
+  --trade-based -mo -per : RECOMMENDED! All features combined.
+                  
   --fast        : Time-based episodes (fixed steps). Agent predicts next candle.
                   Best for: Scalping, high-frequency decisions.
                   
@@ -742,7 +791,7 @@ TRAINING MODES COMPARISON:
     subparsers = parser.add_subparsers(dest='command', help='Command to execute')
     
     # ═══════════════════════════════════════════════════════════════════════════
-    # TRAIN COMMAND (with trade-based and multi-objective options)
+    # TRAIN COMMAND (with trade-based, multi-objective, and PER options)
     # ═══════════════════════════════════════════════════════════════════════════
     train_parser = subparsers.add_parser('train', help='Train models')
     
@@ -762,6 +811,10 @@ TRAINING MODES COMPARISON:
     # Multi-objective option (works with --trade-based)
     train_parser.add_argument('--multi-objective', '-mo', action='store_true',
                             help='⭐ Use Multi-Objective rewards (5 signals) - requires --trade-based')
+    
+    # Prioritized Experience Replay option (works with --trade-based)
+    train_parser.add_argument('--prioritized-replay', '-per', action='store_true',
+                            help='⭐ Use Prioritized Experience Replay (learn from important trades more)')
     
     # Episode count
     train_parser.add_argument('--episodes', type=int, default=None,
@@ -789,6 +842,12 @@ TRAINING MODES COMPARISON:
                              help='[Multi-objective] Weight for loss_control (default: 0.15)')
     train_parser.add_argument('--weight-rr', type=float,
                              help='[Multi-objective] Weight for risk_reward (default: 0.10)')
+    
+    # PER config options
+    train_parser.add_argument('--per-alpha', type=float,
+                             help='[PER] Prioritization strength (0=uniform, 1=full, default: 0.6)')
+    train_parser.add_argument('--per-beta-start', type=float,
+                             help='[PER] Initial importance sampling correction (default: 0.4)')
     
     # Explainability options
     train_parser.add_argument('--explain', action='store_true', 
@@ -929,6 +988,13 @@ TRAINING MODES COMPARISON:
         if hasattr(args, 'multi_objective') and args.multi_objective:
             if not (hasattr(args, 'trade_based') and args.trade_based):
                 logger.warning("--multi-objective requires --trade-based flag")
+                logger.info("Adding --trade-based automatically...")
+                args.trade_based = True
+        
+        # Check for PER without trade-based (PER works best with trade-based but can work without)
+        if hasattr(args, 'prioritized_replay') and args.prioritized_replay:
+            if not (hasattr(args, 'trade_based') and args.trade_based):
+                logger.warning("--prioritized-replay works best with --trade-based flag")
                 logger.info("Adding --trade-based automatically...")
                 args.trade_based = True
         

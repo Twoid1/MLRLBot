@@ -1,63 +1,63 @@
 {
-  "start_time": "2025-12-05T10:47:31.690205",
+  "start_time": "2025-12-05T19:57:09.140262",
   "stages": {
     "Data Loading": {
-      "start_time": 1764960452.4828494,
+      "start_time": 1764993429.6413765,
       "total_items": 15,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1764960458.8231802,
-      "total_time": 6.3403308391571045,
+      "end_time": 1764993436.12714,
+      "total_time": 6.4857635498046875,
       "final_metrics": {
         "datasets_loaded": 15,
-        "time_seconds": 6.340326309204102
+        "time_seconds": 6.485762357711792
       }
     },
     "Feature Engineering": {
-      "start_time": 1764960458.8237011,
+      "start_time": 1764993436.1276577,
       "total_items": 5,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1764960461.5490453,
-      "total_time": 2.725344181060791,
+      "end_time": 1764993438.437429,
+      "total_time": 2.3097712993621826,
       "final_metrics": {
         "feature_sets": 5,
-        "time_seconds": 2.7253408432006836
+        "time_seconds": 2.3097686767578125
       }
     },
     "Data Splitting": {
-      "start_time": 1764960461.5495853,
+      "start_time": 1764993438.4379663,
       "total_items": 5,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1764960466.2641156,
-      "total_time": 4.7145302295684814,
+      "end_time": 1764993440.152043,
+      "total_time": 1.7140767574310303,
       "final_metrics": {
-        "time_seconds": 4.714007377624512
+        "time_seconds": 1.7138206958770752
       }
     },
     "Trade-Based RL Training (Multi-Objective)": {
-      "start_time": 1764960466.7669232,
-      "total_items": 25000,
+      "start_time": 1764993440.4471653,
+      "total_items": 15000,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1764967247.8351278,
-      "total_time": 6781.068204641342,
+      "end_time": 1764997276.5139427,
+      "total_time": 3836.0667774677277,
       "final_metrics": {
-        "time_seconds": 6781.068190336227,
-        "episodes": 25000,
+        "time_seconds": 3836.0667808055878,
+        "episodes": 15000,
         "multi_objective": true
       }
     },
     "Saving Models": {
-      "start_time": 1764967247.8368022,
+      "start_time": 1764997276.5148783,
       "total_items": 2,
       "completed_items": 0,
       "status": "completed",
-      "end_time": 1764967248.4323602,
-      "total_time": 0.5955579280853271,
+      "end_time": 1764997276.8850155,
+      "total_time": 0.37013721466064453,
       "final_metrics": {
-        "time_seconds": 0.5955832004547119
+        "time_seconds": 0.37013840675354004
       }
     }
   },

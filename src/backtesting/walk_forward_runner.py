@@ -259,7 +259,7 @@ class WalkForwardRunner:
                         self.multi_head_network.load_state_dict(q_state, strict=False)
                         self.multi_head_network.eval()
                         
-                        logger.info(f"      ✓ Multi-head network loaded successfully")
+                        logger.info(f"       Multi-head network loaded successfully")
                         
                         # Set objective weights if available in config
                         objective_weights = config_dict.get('objective_weights', None)
